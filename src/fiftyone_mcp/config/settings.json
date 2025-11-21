@@ -1,0 +1,15 @@
+{
+  "server": {
+    "name": "fiftyone-mcp",
+    "version": "0.1.0",
+    "default_port": 5151
+  },
+  "fiftyone": {
+    "database_dir": null,
+    "default_dataset": null
+  },
+  "logging": {
+    "level": "INFO",
+    "format": "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+  }
+}

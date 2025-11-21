@@ -1,0 +1,70 @@
+{
+  "name": "fiftyone-mcp-server",
+  "version": "0.1.0",
+  "description": "MCP server exposing FiftyOne dataset analysis tools",
+  "tools": {
+    "list_datasets": {
+      "description": "List all available FiftyOne datasets"
+    },
+    "load_dataset": {
+      "description": "Load a FiftyOne dataset by name",
+      "parameters": {
+        "name": {
+          "type": "string",
+          "description": "Name of the dataset to load",
+          "required": true
+        }
+      }
+    },
+    "dataset_summary": {
+      "description": "Get summary statistics for a dataset",
+      "parameters": {
+        "name": {
+          "type": "string",
+          "description": "Name of the dataset",
+          "required": true
+        }
+      }
+    },
+    "find_issues": {
+      "description": "Find common issues in a dataset (missing fields, null values, etc.)",
+      "parameters": {
+        "name": {
+          "type": "string",
+          "description": "Name of the dataset to analyze",
+          "required": true
+        }
+      }
+    },
+    "view": {
+      "description": "Create a filtered view of a dataset using a query DSL",
+      "parameters": {
+        "name": {
+          "type": "string",
+          "description": "Name of the dataset",
+          "required": true
+        },
+        "query": {
+          "type": "object",
+          "description": "Query object (e.g., {\"label\": \"person\", \"limit\": 20})",
+          "required": true
+        }
+      }
+    },
+    "launch_app": {
+      "description": "Launch the FiftyOne App for interactive dataset exploration",
+      "parameters": {
+        "name": {
+          "type": "string",
+          "description": "Name of the dataset to visualize",
+          "required": false
+        },
+        "port": {
+          "type": "integer",
+          "description": "Port to run the app on (default: 5151)",
+          "required": false
+        }
+      }
+    }
+  }
+}
