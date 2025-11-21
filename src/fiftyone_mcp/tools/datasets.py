@@ -3,7 +3,6 @@
 import logging
 from typing import Any, Dict, List
 import fiftyone as fo
-from mcp.server import Server
 from mcp.types import Tool, TextContent
 
 from .utils import (
@@ -98,34 +97,29 @@ def dataset_summary(name: str) -> Dict[str, Any]:
         dataset = fo.load_dataset(name)
         summary = dataset_to_summary(dataset)
 
-        # Add count stats
         summary["stats"] = {
             "total_samples": len(dataset),
             "tags": {}
         }
 
-        # Count samples by tag
         for tag in dataset.tags:
             tagged_view = dataset.match_tags(tag)
             summary["stats"]["tags"][tag] = len(tagged_view)
 
-        # Get value counts for categorical fields
         schema = dataset.get_field_schema()
         summary["value_counts"] = {}
 
         for field_name, field in schema.items():
-            # Skip complex fields
             if field_name in ["id", "filepath", "metadata"]:
                 continue
 
             try:
-                # Try to get value counts for simple fields
                 if hasattr(dataset, "count_values"):
                     counts = dataset.count_values(field_name)
-                    if counts and len(counts) < 100:  # Only include if manageable size
+                    if counts and len(counts) < 100:
                         summary["value_counts"][field_name] = dict(counts)
-            except:
-                pass  # Skip fields that don't support count_values
+            except Exception:
+                pass
 
         return format_response(summary)
 
@@ -177,40 +171,29 @@ def get_dataset_tools() -> List[Tool]:
         ]
 
 
-def register_dataset_tools(server: Server) -> None:
-    """
-    Register dataset management tools with the MCP server.
+async def handle_tool_call(name: str, arguments: Dict[str, Any]) -> List[TextContent]:
+    """Handle tool calls for dataset operations."""
+    import json
 
-    Args:
-        server: MCP server instance
-    """
-
-    @server.call_tool()
-    async def call_tool_handler(name: str, arguments: Dict[str, Any]) -> List[TextContent]:
-        """Handle tool calls for dataset operations."""
-        try:
-            if name == "list_datasets":
-                result = list_datasets()
-            elif name == "load_dataset":
-                dataset_name = arguments.get("name")
-                if not dataset_name:
-                    result = format_response(None, success=False, error="Dataset name is required")
-                else:
-                    result = load_dataset(dataset_name)
-            elif name == "dataset_summary":
-                dataset_name = arguments.get("name")
-                if not dataset_name:
-                    result = format_response(None, success=False, error="Dataset name is required")
-                else:
-                    result = dataset_summary(dataset_name)
+    try:
+        if name == "list_datasets":
+            result = list_datasets()
+        elif name == "load_dataset":
+            dataset_name = arguments.get("name")
+            if not dataset_name:
+                result = format_response(None, success=False, error="Dataset name is required")
             else:
-                result = format_response(None, success=False, error=f"Unknown tool: {name}")
+                result = load_dataset(dataset_name)
+        elif name == "dataset_summary":
+            dataset_name = arguments.get("name")
+            if not dataset_name:
+                result = format_response(None, success=False, error="Dataset name is required")
+            else:
+                result = dataset_summary(dataset_name)
 
-            import json
-            return [TextContent(type="text", text=json.dumps(result, indent=2))]
+        return [TextContent(type="text", text=json.dumps(result, indent=2))]
 
-        except Exception as e:
-            logger.error(f"Error handling tool call '{name}': {e}")
-            error_result = format_response(None, success=False, error=str(e))
-            import json
-            return [TextContent(type="text", text=json.dumps(error_result, indent=2))]
+    except Exception as e:
+        logger.error(f"Error handling tool call '{name}': {e}")
+        error_result = format_response(None, success=False, error=str(e))
+        return [TextContent(type="text", text=json.dumps(error_result, indent=2))]

@@ -4,7 +4,6 @@ import json
 import logging
 from typing import Any, Dict, List
 import fiftyone as fo
-from mcp.server import Server
 from mcp.types import Tool, TextContent
 
 from .utils import (
@@ -38,12 +37,10 @@ def create_view(name: str, query: Dict[str, Any]) -> Dict[str, Any]:
         Dictionary containing view information and sample IDs
     """
     try:
-        # Validate query
         is_valid, error = validate_query(query)
         if not is_valid:
             return format_response(None, success=False, error=error)
 
-        # Load dataset
         dataset = get_dataset_safe(name)
         if dataset is None:
             return format_response(
@@ -52,18 +49,15 @@ def create_view(name: str, query: Dict[str, Any]) -> Dict[str, Any]:
                 error=f"Dataset '{name}' not found"
             )
 
-        # Parse query and create view
         view = parse_view_query(dataset, query)
 
-        # Get view info
         view_info = {
             "dataset": name,
             "query": query,
             "num_samples": len(view),
-            "sample_ids": [sample.id for sample in view.limit(100)]  # Return first 100 IDs
+            "sample_ids": [sample.id for sample in view.limit(100)]
         }
 
-        # Add field summary if view is not empty
         if len(view) > 0:
             first_sample = view.first()
             view_info["sample_fields"] = list(first_sample.field_names)
@@ -88,8 +82,6 @@ def launch_app(name: str = None, port: int = 5151, remote: bool = False) -> Dict
         Dictionary containing app launch information
     """
     try:
-        session = None
-
         if name:
             dataset = get_dataset_safe(name)
             if dataset is None:
@@ -98,9 +90,9 @@ def launch_app(name: str = None, port: int = 5151, remote: bool = False) -> Dict
                     success=False,
                     error=f"Dataset '{name}' not found"
                 )
-            session = fo.launch_app(dataset, port=port, remote=remote)
+            fo.launch_app(dataset, port=port, remote=remote)
         else:
-            session = fo.launch_app(port=port, remote=remote)
+            fo.launch_app(port=port, remote=remote)
 
         info = {
             "status": "launched",
@@ -196,40 +188,28 @@ def get_view_tools() -> List[Tool]:
         ]
 
 
-def register_view_tools(server: Server) -> None:
-    """
-    Register view and visualization tools with the MCP server.
+async def handle_tool_call(name: str, arguments: Dict[str, Any]) -> List[TextContent]:
+    """Handle tool calls for view operations."""
+    try:
+        if name == "view":
+            dataset_name = arguments.get("name")
+            query = arguments.get("query", {})
 
-    Args:
-        server: MCP server instance
-    """
-
-    @server.call_tool()
-    async def call_tool_handler(name: str, arguments: Dict[str, Any]) -> List[TextContent]:
-        """Handle tool calls for view operations."""
-        try:
-            if name == "view":
-                dataset_name = arguments.get("name")
-                query = arguments.get("query", {})
-
-                if not dataset_name:
-                    result = format_response(None, success=False, error="Dataset name is required")
-                else:
-                    result = create_view(dataset_name, query)
-
-            elif name == "launch_app":
-                dataset_name = arguments.get("name")
-                port = arguments.get("port", 5151)
-                remote = arguments.get("remote", False)
-
-                result = launch_app(dataset_name, port, remote)
-
+            if not dataset_name:
+                result = format_response(None, success=False, error="Dataset name is required")
             else:
-                result = format_response(None, success=False, error=f"Unknown tool: {name}")
+                result = create_view(dataset_name, query)
 
-            return [TextContent(type="text", text=json.dumps(result, indent=2))]
+        elif name == "launch_app":
+            dataset_name = arguments.get("name")
+            port = arguments.get("port", 5151)
+            remote = arguments.get("remote", False)
 
-        except Exception as e:
-            logger.error(f"Error handling tool call '{name}': {e}")
-            error_result = format_response(None, success=False, error=str(e))
-            return [TextContent(type="text", text=json.dumps(error_result, indent=2))]
+            result = launch_app(dataset_name, port, remote)
+
+        return [TextContent(type="text", text=json.dumps(result, indent=2))]
+
+    except Exception as e:
+        logger.error(f"Error handling tool call '{name}': {e}")
+        error_result = format_response(None, success=False, error=str(e))
+        return [TextContent(type="text", text=json.dumps(error_result, indent=2))]

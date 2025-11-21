@@ -4,7 +4,6 @@ import json
 import logging
 from typing import Any, Dict, List
 import fiftyone as fo
-from mcp.server import Server
 from mcp.types import Tool, TextContent
 
 from .utils import (
@@ -43,10 +42,8 @@ def find_issues(name: str, detailed: bool = False) -> Dict[str, Any]:
                 error=f"Dataset '{name}' not found"
             )
 
-        # Run health check
         issues = check_dataset_health(dataset)
 
-        # Add summary
         total_issues = (
             len(issues["missing_fields"]) +
             len(issues["metadata_issues"]) +
@@ -61,22 +58,20 @@ def find_issues(name: str, detailed: bool = False) -> Dict[str, Any]:
             "issues": issues
         }
 
-        # Add detailed sample info if requested
         if detailed and total_issues > 0:
             sample_details = []
 
-            # Get samples with null values
             for field_name, count in issues["null_values"].items():
                 if count > 0:
                     null_samples = dataset.match(fo.ViewField(field_name) == None)
-                    for sample in null_samples.limit(5):  # Limit to 5 examples
+                    for sample in null_samples.limit(5):
                         sample_details.append({
                             "id": sample.id,
                             "filepath": sample.filepath,
                             "issue": f"null value in field '{field_name}'"
                         })
 
-            summary["sample_examples"] = sample_details[:10]  # Max 10 examples
+            summary["sample_examples"] = sample_details[:10]
 
         return format_response(summary)
 
@@ -110,7 +105,6 @@ def validate_labels(name: str, label_field: str) -> Dict[str, Any]:
                 error=f"Dataset '{name}' not found"
             )
 
-        # Check if field exists
         if label_field not in dataset.get_field_schema():
             return format_response(
                 None,
@@ -125,7 +119,6 @@ def validate_labels(name: str, label_field: str) -> Dict[str, Any]:
             "examples": []
         }
 
-        # Validate samples
         for sample in dataset.select_fields([label_field]):
             label_value = sample[label_field]
 
@@ -133,10 +126,8 @@ def validate_labels(name: str, label_field: str) -> Dict[str, Any]:
                 validation_issues["missing_labels"] += 1
                 continue
 
-            # Check detections/classifications
             if hasattr(label_value, "detections"):
                 for detection in label_value.detections:
-                    # Validate bounding box
                     if hasattr(detection, "bounding_box"):
                         bbox = detection.bounding_box
                         if bbox:
@@ -149,7 +140,6 @@ def validate_labels(name: str, label_field: str) -> Dict[str, Any]:
                                     "bbox": bbox
                                 })
 
-                    # Validate confidence
                     if hasattr(detection, "confidence"):
                         conf = detection.confidence
                         if conf is not None and not (0 <= conf <= 1):
@@ -160,7 +150,6 @@ def validate_labels(name: str, label_field: str) -> Dict[str, Any]:
                                 "confidence": conf
                             })
 
-        # Limit examples
         validation_issues["examples"] = validation_issues["examples"][:10]
 
         result = {
@@ -229,44 +218,32 @@ def get_debug_tools() -> List[Tool]:
         ]
 
 
-def register_debug_tools(server: Server) -> None:
-    """
-    Register debugging and issue detection tools with the MCP server.
+async def handle_tool_call(name: str, arguments: Dict[str, Any]) -> List[TextContent]:
+    """Handle tool calls for debug operations."""
+    try:
+        if name == "find_issues":
+            dataset_name = arguments.get("name")
+            detailed = arguments.get("detailed", False)
 
-    Args:
-        server: MCP server instance
-    """
-
-    @server.call_tool()
-    async def call_tool_handler(name: str, arguments: Dict[str, Any]) -> List[TextContent]:
-        """Handle tool calls for debug operations."""
-        try:
-            if name == "find_issues":
-                dataset_name = arguments.get("name")
-                detailed = arguments.get("detailed", False)
-
-                if not dataset_name:
-                    result = format_response(None, success=False, error="Dataset name is required")
-                else:
-                    result = find_issues(dataset_name, detailed)
-
-            elif name == "validate_labels":
-                dataset_name = arguments.get("name")
-                label_field = arguments.get("label_field")
-
-                if not dataset_name:
-                    result = format_response(None, success=False, error="Dataset name is required")
-                elif not label_field:
-                    result = format_response(None, success=False, error="Label field is required")
-                else:
-                    result = validate_labels(dataset_name, label_field)
-
+            if not dataset_name:
+                result = format_response(None, success=False, error="Dataset name is required")
             else:
-                result = format_response(None, success=False, error=f"Unknown tool: {name}")
+                result = find_issues(dataset_name, detailed)
 
-            return [TextContent(type="text", text=json.dumps(result, indent=2))]
+        elif name == "validate_labels":
+            dataset_name = arguments.get("name")
+            label_field = arguments.get("label_field")
 
-        except Exception as e:
-            logger.error(f"Error handling tool call '{name}': {e}")
-            error_result = format_response(None, success=False, error=str(e))
-            return [TextContent(type="text", text=json.dumps(error_result, indent=2))]
+            if not dataset_name:
+                result = format_response(None, success=False, error="Dataset name is required")
+            elif not label_field:
+                result = format_response(None, success=False, error="Label field is required")
+            else:
+                result = validate_labels(dataset_name, label_field)
+
+        return [TextContent(type="text", text=json.dumps(result, indent=2))]
+
+    except Exception as e:
+        logger.error(f"Error handling tool call '{name}': {e}")
+        error_result = format_response(None, success=False, error=str(e))
+        return [TextContent(type="text", text=json.dumps(error_result, indent=2))]

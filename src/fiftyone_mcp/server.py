@@ -8,12 +8,13 @@ from typing import Any, Dict
 
 from mcp.server import Server
 from mcp.server.stdio import stdio_server
+from mcp.types import TextContent
 
-from .tools.datasets import register_dataset_tools, get_dataset_tools
-from .tools.views import register_view_tools, get_view_tools
-from .tools.debug import register_debug_tools, get_debug_tools
-
-# Configure logging
+from .tools.datasets import get_dataset_tools
+from .tools.views import get_view_tools
+from .tools.debug import get_debug_tools
+from .tools import datasets, views, debug
+from .tools.utils import format_response
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
@@ -48,9 +49,17 @@ async def main():
     async def list_tools_handler():
         return all_tools
 
-    register_dataset_tools(server)
-    register_view_tools(server)
-    register_debug_tools(server)
+    @server.call_tool()
+    async def call_tool_handler(name: str, arguments: Dict[str, Any]):
+        if name in ["list_datasets", "load_dataset", "dataset_summary"]:
+            return await datasets.handle_tool_call(name, arguments)
+        elif name in ["view", "launch_app"]:
+            return await views.handle_tool_call(name, arguments)
+        elif name in ["find_issues", "validate_labels"]:
+            return await debug.handle_tool_call(name, arguments)
+        else:
+            result = format_response(None, success=False, error=f"Unknown tool: {name}")
+            return [TextContent(type="text", text=json.dumps(result, indent=2))]
 
     logger.info(f"{server_name} server initialized successfully")
 

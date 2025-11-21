@@ -124,14 +124,12 @@ def dataset_to_summary(dataset: fo.Dataset) -> Dict[str, Any]:
         "sample_fields": {}
     }
 
-    # Add field information
     for field_name, field in dataset.get_field_schema().items():
         summary["sample_fields"][field_name] = {
             "type": str(type(field).__name__),
             "description": getattr(field, "description", None)
         }
 
-    # Add default fields info
     if len(dataset) > 0:
         first_sample = dataset.first()
         summary["first_sample_id"] = first_sample.id
@@ -152,26 +150,21 @@ def parse_view_query(dataset: fo.Dataset, query: Dict[str, Any]) -> fo.DatasetVi
     """
     view = dataset.view()
 
-    # Filter by label
     if "label" in query:
         label_value = query["label"]
-        # Try to find label fields in the dataset
         label_fields = [
             name for name, field in dataset.get_field_schema().items()
             if "label" in name.lower() or isinstance(field, (fo.core.fields.EmbeddedDocumentField))
         ]
 
         if label_fields:
-            # Use the first label field found
             field_name = label_fields[0]
             view = view.filter_labels(field_name, fo.ViewField("label") == label_value)
 
-    # Filter by field existence
     if "field" in query:
         field_name = query["field"]
         view = view.exists(field_name)
 
-    # Filter by confidence threshold
     if "confidence" in query:
         confidence = query["confidence"]
         label_fields = [
@@ -182,16 +175,13 @@ def parse_view_query(dataset: fo.Dataset, query: Dict[str, Any]) -> fo.DatasetVi
             field_name = label_fields[0]
             view = view.filter_labels(field_name, fo.ViewField("confidence") > confidence)
 
-    # Sort
     if "sort_by" in query:
         sort_field = query["sort_by"]
         view = view.sort_by(sort_field)
 
-    # Skip samples
     if "skip" in query:
         view = view.skip(query["skip"])
 
-    # Limit samples
     if "limit" in query:
         view = view.limit(query["limit"])
 
@@ -217,7 +207,6 @@ def check_dataset_health(dataset: fo.Dataset) -> Dict[str, Any]:
 
     schema = dataset.get_field_schema()
 
-    # Check for samples with missing metadata
     if "metadata" in schema:
         null_metadata_count = len(dataset.match(fo.ViewField("metadata") == None))
         if null_metadata_count > 0:
@@ -225,21 +214,18 @@ def check_dataset_health(dataset: fo.Dataset) -> Dict[str, Any]:
                 f"{null_metadata_count} samples missing metadata"
             )
 
-    # Check label fields for null/empty values
     for field_name, field in schema.items():
         if "label" in field_name.lower():
-            # Count null values
             null_count = len(dataset.match(fo.ViewField(field_name) == None))
             if null_count > 0:
                 issues["null_values"][field_name] = null_count
 
-            # Check for empty detections/labels
             try:
                 empty_view = dataset.match(fo.ViewField(field_name).length() == 0)
                 empty_count = len(empty_view)
                 if empty_count > 0:
                     issues["empty_labels"][field_name] = empty_count
-            except:
-                pass  # Field might not support .length()
+            except Exception:
+                pass
 
     return issues
