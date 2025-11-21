@@ -19,7 +19,7 @@ black = "^24.0.0"
 ruff = "^0.6.0"
 
 [tool.poetry.scripts]
-fiftyone-mcp = "fiftyone_mcp.server:main"
+fiftyone-mcp = "fiftyone_mcp.server:run"
 
 [build-system]
 requires = ["poetry-core"]

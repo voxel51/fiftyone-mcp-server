@@ -117,18 +117,9 @@ def launch_app(name: str = None, port: int = 5151, remote: bool = False) -> Dict
         return format_response(None, success=False, error=str(e))
 
 
-def register_view_tools(server: Server) -> None:
-    """
-    Register view and visualization tools with the MCP server.
-
-    Args:
-        server: MCP server instance
-    """
-
-    @server.list_tools()
-    async def list_tools_handler() -> List[Tool]:
-        """List available view tools."""
-        return [
+def get_view_tools() -> List[Tool]:
+    """Get view tool definitions."""
+    return [
             Tool(
                 name="view",
                 description=(
@@ -203,6 +194,15 @@ def register_view_tools(server: Server) -> None:
                 }
             )
         ]
+
+
+def register_view_tools(server: Server) -> None:
+    """
+    Register view and visualization tools with the MCP server.
+
+    Args:
+        server: MCP server instance
+    """
 
     @server.call_tool()
     async def call_tool_handler(name: str, arguments: Dict[str, Any]) -> List[TextContent]:

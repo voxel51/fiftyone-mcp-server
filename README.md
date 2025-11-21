@@ -69,7 +69,7 @@ All through conversational AI interfaces like ChatGPT!
 
 ```bash
 # Clone the repository
-git clone https://github.com/yourusername/fiftyone-mcp-server.git
+git clone https://github.com/AdonaiVera/fiftyone-mcp-server.git
 cd fiftyone-mcp-server
 
 # Install with Poetry
@@ -81,10 +81,6 @@ poetry install
 ### Running the Server
 
 ```bash
-# Run directly
-poetry run python src/fiftyone_mcp/server.py
-
-# Or use the installed command
 poetry run fiftyone-mcp
 ```
 
@@ -105,7 +101,7 @@ The server uses stdio transport and is designed to be connected via MCP-compatib
   "mcpServers": {
     "fiftyone": {
       "command": "poetry",
-      "args": ["run", "python", "src/fiftyone_mcp/server.py"],
+      "args": ["run", "fiftyone-mcp"],
       "cwd": "/absolute/path/to/fiftyone-mcp-server"
     }
   }
@@ -129,7 +125,7 @@ Add to your Claude configuration file:
   "mcpServers": {
     "fiftyone": {
       "command": "poetry",
-      "args": ["run", "python", "src/fiftyone_mcp/server.py"],
+      "args": ["run", "fiftyone-mcp"],
       "cwd": "/absolute/path/to/fiftyone-mcp-server"
     }
   }
@@ -275,8 +271,6 @@ fiftyone-mcp-server/
 │   ├── test_datasets.py
 │   ├── test_views.py
 │   └── test_debug.py
-├── examples/
-│   └── chatgpt_integration.md
 ├── pyproject.toml
 ├── mcp.json
 └── README.md
@@ -328,20 +322,6 @@ poetry run ruff check src/ tests/
 - [ ] Automated quality assurance workflows
 - [ ] Integration with annotation platforms
 
-## Contributing
-
-Contributions are welcome! Please:
-
-1. Fork the repository
-2. Create a feature branch
-3. Add tests for new functionality
-4. Ensure all tests pass
-5. Submit a pull request
-
-## License
-
-MIT License - see [LICENSE](LICENSE) for details
-
 ## Resources
 
 - [FiftyOne Documentation](https://docs.voxel51.com/)
@@ -349,12 +329,6 @@ MIT License - see [LICENSE](LICENSE) for details
 - [MCP Specification](https://spec.modelcontextprotocol.io)
 - [ChatGPT Desktop](https://openai.com/chatgpt/desktop/)
 - [Claude Desktop](https://claude.ai/download)
-
-## Support
-
-- **Issues:** [GitHub Issues](https://github.com/yourusername/fiftyone-mcp-server/issues)
-- **Discussions:** [GitHub Discussions](https://github.com/yourusername/fiftyone-mcp-server/discussions)
-- **FiftyOne Slack:** [Join the community](https://slack.voxel51.com/)
 
 ---
 

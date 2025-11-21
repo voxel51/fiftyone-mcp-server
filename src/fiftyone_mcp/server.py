@@ -9,9 +9,9 @@ from typing import Any, Dict
 from mcp.server import Server
 from mcp.server.stdio import stdio_server
 
-from .tools.datasets import register_dataset_tools
-from .tools.views import register_view_tools
-from .tools.debug import register_debug_tools
+from .tools.datasets import register_dataset_tools, get_dataset_tools
+from .tools.views import register_view_tools, get_view_tools
+from .tools.debug import register_debug_tools, get_debug_tools
 
 # Configure logging
 logging.basicConfig(
@@ -34,29 +34,26 @@ def load_config() -> Dict[str, Any]:
 
 async def main():
     """Main server function."""
-    # Load configuration
     config = load_config()
     server_config = config.get("server", {})
     server_name = server_config.get("name", "fiftyone-mcp")
 
     logger.info(f"Starting {server_name} server...")
 
-    # Create server instance
     server = Server(server_name)
 
-    # Register all tool modules
-    logger.info("Registering dataset tools...")
+    all_tools = get_dataset_tools() + get_view_tools() + get_debug_tools()
+
+    @server.list_tools()
+    async def list_tools_handler():
+        return all_tools
+
     register_dataset_tools(server)
-
-    logger.info("Registering view tools...")
     register_view_tools(server)
-
-    logger.info("Registering debug tools...")
     register_debug_tools(server)
 
     logger.info(f"{server_name} server initialized successfully")
 
-    # Run the server using stdio transport
     async with stdio_server() as (read_stream, write_stream):
         await server.run(
             read_stream,

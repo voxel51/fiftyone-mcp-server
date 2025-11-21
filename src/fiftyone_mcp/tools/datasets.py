@@ -134,18 +134,9 @@ def dataset_summary(name: str) -> Dict[str, Any]:
         return format_response(None, success=False, error=str(e))
 
 
-def register_dataset_tools(server: Server) -> None:
-    """
-    Register dataset management tools with the MCP server.
-
-    Args:
-        server: MCP server instance
-    """
-
-    @server.list_tools()
-    async def list_tools_handler() -> List[Tool]:
-        """List available dataset tools."""
-        return [
+def get_dataset_tools() -> List[Tool]:
+    """Get dataset tool definitions."""
+    return [
             Tool(
                 name="list_datasets",
                 description="List all available FiftyOne datasets with metadata",
@@ -184,6 +175,15 @@ def register_dataset_tools(server: Server) -> None:
                 }
             )
         ]
+
+
+def register_dataset_tools(server: Server) -> None:
+    """
+    Register dataset management tools with the MCP server.
+
+    Args:
+        server: MCP server instance
+    """
 
     @server.call_tool()
     async def call_tool_handler(name: str, arguments: Dict[str, Any]) -> List[TextContent]:

@@ -181,18 +181,9 @@ def validate_labels(name: str, label_field: str) -> Dict[str, Any]:
         return format_response(None, success=False, error=str(e))
 
 
-def register_debug_tools(server: Server) -> None:
-    """
-    Register debugging and issue detection tools with the MCP server.
-
-    Args:
-        server: MCP server instance
-    """
-
-    @server.list_tools()
-    async def list_tools_handler() -> List[Tool]:
-        """List available debug tools."""
-        return [
+def get_debug_tools() -> List[Tool]:
+    """Get debug tool definitions."""
+    return [
             Tool(
                 name="find_issues",
                 description=(
@@ -236,6 +227,15 @@ def register_debug_tools(server: Server) -> None:
                 }
             )
         ]
+
+
+def register_debug_tools(server: Server) -> None:
+    """
+    Register debugging and issue detection tools with the MCP server.
+
+    Args:
+        server: MCP server instance
+    """
 
     @server.call_tool()
     async def call_tool_handler(name: str, arguments: Dict[str, Any]) -> List[TextContent]:
