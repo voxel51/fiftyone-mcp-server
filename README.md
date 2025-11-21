@@ -61,7 +61,7 @@ All through conversational AI interfaces like ChatGPT!
 
 ### Prerequisites
 
-- Python 3.10+
+- Python 3.10-3.13 (Python 3.11 recommended, 3.14+ not yet supported)
 - [Poetry](https://python-poetry.org/docs/#installation) package manager
 - FiftyOne datasets (or create new ones)
 
@@ -245,7 +245,7 @@ Launch FiftyOne App for visualization.
 
 **Parameters:**
 - `name` (string, optional): Dataset to visualize
-- `port` (integer, optional): Port number (default: 5151)
+- `port` (integer, optional): Port number (default: 5149)
 - `remote` (boolean, optional): Remote mode (default: false)
 
 **Returns:** App launch status and URL

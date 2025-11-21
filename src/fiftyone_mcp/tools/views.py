@@ -69,13 +69,13 @@ def create_view(name: str, query: Dict[str, Any]) -> Dict[str, Any]:
         return format_response(None, success=False, error=str(e))
 
 
-def launch_app(name: str = None, port: int = 5151, remote: bool = False) -> Dict[str, Any]:
+def launch_app(name: str = None, port: int = 5149, remote: bool = False) -> Dict[str, Any]:
     """
     Launch the FiftyOne App for interactive dataset exploration.
 
     Args:
         name: Name of the dataset to visualize (optional)
-        port: Port to run the app on (default: 5151)
+        port: Port to run the app on (default: 5149)
         remote: Whether to launch in remote mode (default: False)
 
     Returns:
@@ -175,7 +175,7 @@ def get_view_tools() -> List[Tool]:
                         },
                         "port": {
                             "type": "integer",
-                            "description": "Port to run the app on (default: 5151)"
+                            "description": "Port to run the app on (default: 5149)"
                         },
                         "remote": {
                             "type": "boolean",
@@ -202,7 +202,7 @@ async def handle_tool_call(name: str, arguments: Dict[str, Any]) -> List[TextCon
 
         elif name == "launch_app":
             dataset_name = arguments.get("name")
-            port = arguments.get("port", 5151)
+            port = arguments.get("port", 5149)
             remote = arguments.get("remote", False)
 
             result = launch_app(dataset_name, port, remote)

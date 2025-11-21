@@ -2,7 +2,7 @@
   "server": {
     "name": "fiftyone-mcp",
     "version": "0.1.0",
-    "default_port": 5151
+    "default_port": 5149
   },
   "fiftyone": {
     "database_dir": null,

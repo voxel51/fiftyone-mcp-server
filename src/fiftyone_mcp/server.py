@@ -3,8 +3,13 @@
 import asyncio
 import logging
 import json
+import sys
+import os
 from pathlib import Path
 from typing import Any, Dict
+
+os.environ["FIFTYONE_DO_NOT_TRACK"] = "true"
+os.environ["FIFTYONE_DISABLE_WELCOME"] = "true"
 
 from mcp.server import Server
 from mcp.server.stdio import stdio_server
@@ -15,11 +20,23 @@ from .tools.views import get_view_tools
 from .tools.debug import get_debug_tools
 from .tools import datasets, views, debug
 from .tools.utils import format_response
+
 logging.basicConfig(
     level=logging.INFO,
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    stream=sys.stderr,
+    force=True
 )
 logger = logging.getLogger(__name__)
+
+import fiftyone
+for fo_logger_name in ['fiftyone', 'fiftyone.core', 'fiftyone.core.session', 'fiftyone.core.session.session']:
+    fo_logger = logging.getLogger(fo_logger_name)
+    fo_logger.handlers = []
+    handler = logging.StreamHandler(sys.stderr)
+    handler.setFormatter(logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s"))
+    fo_logger.addHandler(handler)
+    fo_logger.propagate = False
 
 
 def load_config() -> Dict[str, Any]:

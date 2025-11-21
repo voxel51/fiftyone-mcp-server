@@ -61,7 +61,7 @@
         },
         "port": {
           "type": "integer",
-          "description": "Port to run the app on (default: 5151)",
+          "description": "Port to run the app on (default: 5149)",
           "required": false
         }
       }
