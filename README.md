@@ -61,7 +61,7 @@ All through conversational AI interfaces like ChatGPT!
 
 ### Prerequisites
 
-- Python 3.8+
+- Python 3.10+
 - [Poetry](https://python-poetry.org/docs/#installation) package manager
 - FiftyOne datasets (or create new ones)
 

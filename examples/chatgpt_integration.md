@@ -5,7 +5,7 @@ This guide walks you through integrating the FiftyOne MCP Server with ChatGPT De
 ## Prerequisites
 
 - [ChatGPT Desktop App](https://openai.com/chatgpt/desktop/) installed
-- Python 3.8+ with Poetry
+- Python 3.10+ with Poetry
 - FiftyOne MCP Server installed (see main [README.md](../README.md))
 
 ## Installation Steps
@@ -254,7 +254,7 @@ If you prefer using a virtual environment:
 ### Server Crashes
 
 1. **Check dependencies:** Run `poetry install` again
-2. **Python version:** Verify Python 3.8+ is installed
+2. **Python version:** Verify Python 3.10+ is installed
 3. **FiftyOne setup:** Ensure FiftyOne is working:
    ```bash
    poetry run python -c "import fiftyone as fo; print(fo.__version__)"
