@@ -1,4 +1,6 @@
 # FiftyOne MCP Server
+![Generated Image November 21, 2025 - 12_18AM](https://github.com/user-attachments/assets/c3f6e44c-4d22-4d69-acf7-45d983df2a86)
+
 
 > **Model Context Protocol (MCP) server for FiftyOne dataset analysis and management**
 
