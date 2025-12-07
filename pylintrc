@@ -1,0 +1,84 @@
+[MASTER]
+
+# Add files or directories matching the regex patterns to the blacklist
+ignore-patterns=./tests/*
+
+# Use multiple processes to speed up Pylint
+jobs=1
+
+# Allow loading of arbitrary C extensions
+unsafe-load-any-extension=no
+
+
+[MESSAGES CONTROL]
+
+# Only show warnings with the listed confidence levels
+# Valid levels: HIGH, INFERENCE, INFERENCE_FAILURE, UNDEFINED
+confidence=
+
+# Disable specific messages
+disable=
+    missing-module-docstring,
+    missing-class-docstring,
+    missing-function-docstring,
+    too-few-public-methods,
+    too-many-arguments,
+    too-many-locals,
+    invalid-name
+
+
+[REPORTS]
+
+# Set the output format
+output-format=text
+
+# Tells whether to display a full report or only the messages
+reports=no
+
+# Activate the evaluation score
+score=yes
+
+
+[FORMAT]
+
+# Maximum number of characters on a single line
+max-line-length=79
+
+# Maximum number of lines in a module
+max-module-lines=1000
+
+
+[BASIC]
+
+# Good variable names
+good-names=i,j,k,ex,Run,_,fo,op,cm,db,id
+
+
+[DESIGN]
+
+# Maximum number of arguments for function / method
+max-args=10
+
+# Maximum number of attributes for a class
+max-attributes=15
+
+# Maximum number of boolean expressions in a if statement
+max-bool-expr=5
+
+# Maximum number of branch for function / method body
+max-branches=15
+
+
+[IMPORTS]
+
+# Deprecated modules which should not be used
+deprecated-modules=optparse
+
+# Allow wildcard imports from modules
+allow-wildcard-with-all=no
+
+
+[EXCEPTIONS]
+
+# Exceptions that will emit a warning when being caught
+overgeneral-exceptions=builtins.Exception

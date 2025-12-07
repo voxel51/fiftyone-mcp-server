@@ -16,7 +16,8 @@ mcp = "^0.9.0"
 pytest = "^8.0.0"
 pytest-asyncio = "^0.23.0"
 black = "^24.0.0"
-ruff = "^0.6.0"
+pylint = "^3.0.0"
+pre-commit = "^3.5.0"
 
 [tool.poetry.scripts]
 fiftyone-mcp = "fiftyone_mcp.server:run"
@@ -31,9 +32,5 @@ python_files = ["test_*.py"]
 python_functions = ["test_*"]
 
 [tool.black]
-line-length = 100
+line-length = 79
 target-version = ['py310']
-
-[tool.ruff]
-line-length = 100
-target-version = "py310"

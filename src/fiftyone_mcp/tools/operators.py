@@ -1,0 +1,503 @@
+"""
+Operator execution tools for FiftyOne MCP server.
+
+| Copyright 2017-2025, Voxel51, Inc.
+| `voxel51.com <https://voxel51.com/>`_
+|
+"""
+
+import json
+import logging
+
+import fiftyone as fo
+from fiftyone.operators import registry as op_registry
+from fiftyone.operators.executor import ExecutionContext
+from mcp.types import Tool, TextContent
+
+from .utils import format_response, safe_serialize
+
+
+logger = logging.getLogger(__name__)
+
+_context_manager = None
+
+
+def get_context_manager():
+    """Gets the global context manager instance.
+
+    Returns:
+        a :class:`ContextManager` instance
+    """
+    global _context_manager
+    if _context_manager is None:
+        _context_manager = ContextManager()
+
+    return _context_manager
+
+
+def set_context(
+    dataset_name,
+    view_stages=None,
+    selected_samples=None,
+    selected_labels=None,
+    current_sample=None,
+):
+    """Sets the execution context for operators.
+
+    Args:
+        dataset_name: the name of the dataset to work with
+        view_stages (None): an optional list of DatasetView stages to
+            filter/transform the dataset
+        selected_samples (None): an optional list of selected sample IDs
+        selected_labels (None): an optional list of selected labels
+        current_sample (None): an optional ID of the current sample being
+            viewed
+
+    Returns:
+        a dict with context state summary
+    """
+    cm = get_context_manager()
+    return cm.set_context(
+        dataset_name,
+        view_stages=view_stages,
+        selected_samples=selected_samples,
+        selected_labels=selected_labels,
+        current_sample=current_sample,
+    )
+
+
+def get_context():
+    """Gets the current execution context state.
+
+    Returns:
+        a dict with current context state
+    """
+    cm = get_context_manager()
+    return cm.get_context()
+
+
+def clear_context():
+    """Clears the execution context.
+
+    Returns:
+        a dict with success message
+    """
+    cm = get_context_manager()
+    return cm.clear_context()
+
+
+def list_operators(builtin_only=None, operator_type=None):
+    """Lists all available FiftyOne operators.
+
+    Args:
+        builtin_only (None): if True, only builtin operators. If False, only
+            custom operators. If None, all operators
+        operator_type (None): filter by type: ``"operator"`` or ``"panel"``
+
+    Returns:
+        a dict containing list of operators
+    """
+    try:
+        builtin = "all"
+        if builtin_only is True:
+            builtin = True
+        elif builtin_only is False:
+            builtin = False
+
+        operators = op_registry.list_operators(
+            enabled=True, builtin=builtin, type=operator_type
+        )
+
+        operator_list = []
+        for op in operators:
+            operator_list.append(
+                {
+                    "uri": op.uri,
+                    "name": op.name,
+                    "label": op.config.label,
+                    "description": op.config.description,
+                    "plugin_name": op.plugin_name,
+                    "builtin": op.builtin,
+                    "dynamic": op.config.dynamic,
+                }
+            )
+
+        return format_response(
+            {"count": len(operator_list), "operators": operator_list}
+        )
+
+    except Exception as e:
+        logger.error(f"Failed to list operators: {e}")
+        return format_response(None, success=False, error=str(e))
+
+
+def get_operator_schema(operator_uri):
+    """Gets the input schema for a specific operator.
+
+    Args:
+        operator_uri: the URI of the operator (e.g.,
+            ``"@voxel51/operators/tag_samples"``)
+
+    Returns:
+        a dict containing the operator's input schema
+    """
+    try:
+        operator = op_registry.get_operator(operator_uri)
+        if operator is None:
+            return format_response(
+                None,
+                success=False,
+                error=f"Operator '{operator_uri}' not found",
+            )
+
+        cm = get_context_manager()
+        ctx = cm.get_execution_context()
+        if ctx is None:
+            return format_response(
+                None,
+                success=False,
+                error="Context not set. Use set_context first to get dynamic schema.",
+            )
+
+        input_property = operator.resolve_input(ctx)
+        schema = input_property.to_json() if input_property else {}
+
+        return format_response(
+            {
+                "operator_uri": operator_uri,
+                "operator_label": operator.config.label,
+                "input_schema": schema,
+            }
+        )
+
+    except Exception as e:
+        logger.error(
+            f"Failed to get operator schema for '{operator_uri}': {e}"
+        )
+        return format_response(None, success=False, error=str(e))
+
+
+def execute_operator(operator_uri, params=None):
+    """Executes a FiftyOne operator.
+
+    Args:
+        operator_uri: the URI of the operator to execute
+        params (None): an optional dict of parameters for the operator
+
+    Returns:
+        a dict containing execution result
+    """
+    try:
+        operator = op_registry.get_operator(operator_uri)
+        if operator is None:
+            return format_response(
+                None,
+                success=False,
+                error=f"Operator '{operator_uri}' not found",
+            )
+
+        cm = get_context_manager()
+        ctx = cm.get_execution_context()
+        if ctx is None:
+            return format_response(
+                None,
+                success=False,
+                error="Context not set. Use set_context first before executing operators.",
+            )
+        if params:
+            ctx.params.update(params)
+        result = operator.execute(ctx)
+
+        return format_response(
+            {
+                "operator_uri": operator_uri,
+                "success": True,
+                "result": safe_serialize(result) if result else None,
+            }
+        )
+
+    except Exception as e:
+        logger.error(f"Failed to execute operator '{operator_uri}': {e}")
+        return format_response(None, success=False, error=str(e))
+
+
+def get_operator_tools():
+    """Gets the list of operator-related MCP tools.
+
+    Returns:
+        a list of :class:`mcp.types.Tool` instances
+    """
+    return [
+        Tool(
+            name="set_context",
+            description="Set the execution context for FiftyOne operations. This defines what dataset, view, and selection subsequent operators will work with.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "dataset_name": {
+                        "type": "string",
+                        "description": "Name of the dataset to work with",
+                    },
+                    "view_stages": {
+                        "type": "array",
+                        "description": "Optional DatasetView stages to filter/transform the dataset",
+                        "items": {"type": "object"},
+                    },
+                    "selected_samples": {
+                        "type": "array",
+                        "description": "Optional list of selected sample IDs",
+                        "items": {"type": "string"},
+                    },
+                    "selected_labels": {
+                        "type": "array",
+                        "description": "Optional list of selected labels",
+                        "items": {"type": "object"},
+                    },
+                    "current_sample": {
+                        "type": "string",
+                        "description": "Optional ID of the current sample being viewed",
+                    },
+                },
+                "required": ["dataset_name"],
+            },
+        ),
+        Tool(
+            name="get_context",
+            description="Get the current execution context state including dataset, view, and selection information.",
+            inputSchema={"type": "object", "properties": {}},
+        ),
+        Tool(
+            name="list_operators",
+            description="List all available FiftyOne operators that can be executed.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "builtin_only": {
+                        "type": "boolean",
+                        "description": "If true, only return built-in operators. If false, only custom operators. If not provided, return all.",
+                    },
+                    "operator_type": {
+                        "type": "string",
+                        "enum": ["operator", "panel"],
+                        "description": "Filter by operator type. Omit to return all types.",
+                    },
+                },
+            },
+        ),
+        Tool(
+            name="get_operator_schema",
+            description="Get the input schema for a specific operator. The schema is dynamically generated based on the current execution context.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "operator_uri": {
+                        "type": "string",
+                        "description": "The URI of the operator (e.g., '@voxel51/operators/tag_samples')",
+                    }
+                },
+                "required": ["operator_uri"],
+            },
+        ),
+        Tool(
+            name="execute_operator",
+            description="Execute a FiftyOne operator with the current execution context and provided parameters.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "operator_uri": {
+                        "type": "string",
+                        "description": "The URI of the operator to execute",
+                    },
+                    "params": {
+                        "type": "object",
+                        "description": "Parameters for the operator. Use get_operator_schema to see what parameters are required.",
+                    },
+                },
+                "required": ["operator_uri"],
+            },
+        ),
+    ]
+
+
+async def handle_tool_call(name, arguments):
+    """Handles operator tool calls.
+
+    Args:
+        name: the name of the tool
+        arguments: a dict of arguments for the tool
+
+    Returns:
+        a list of :class:`mcp.types.TextContent` instances
+    """
+    if name == "set_context":
+        result = set_context(
+            dataset_name=arguments["dataset_name"],
+            view_stages=arguments.get("view_stages"),
+            selected_samples=arguments.get("selected_samples"),
+            selected_labels=arguments.get("selected_labels"),
+            current_sample=arguments.get("current_sample"),
+        )
+    elif name == "get_context":
+        result = get_context()
+    elif name == "list_operators":
+        result = list_operators(
+            builtin_only=arguments.get("builtin_only"),
+            operator_type=arguments.get("operator_type"),
+        )
+    elif name == "get_operator_schema":
+        result = get_operator_schema(arguments["operator_uri"])
+    elif name == "execute_operator":
+        result = execute_operator(
+            operator_uri=arguments["operator_uri"],
+            params=arguments.get("params", {}),
+        )
+    else:
+        result = format_response(
+            None, success=False, error=f"Unknown tool: {name}"
+        )
+
+    return [TextContent(type="text", text=json.dumps(result, indent=2))]
+
+
+class ContextManager(object):
+    """Manages the execution context state for FiftyOne operators.
+
+    This class maintains the current dataset, view, and selection state that
+    operators use for execution.
+    """
+
+    def __init__(self):
+        self.request_params = {}
+
+    def set_context(
+        self,
+        dataset_name,
+        view_stages=None,
+        selected_samples=None,
+        selected_labels=None,
+        current_sample=None,
+    ):
+        """Sets the execution context.
+
+        Args:
+            dataset_name: the name of the dataset to work with
+            view_stages (None): an optional list of DatasetView stages
+            selected_samples (None): an optional list of selected sample IDs
+            selected_labels (None): an optional list of selected labels
+            current_sample (None): an optional ID of the current sample
+
+        Returns:
+            a dict with context state summary
+        """
+        try:
+            if not fo.dataset_exists(dataset_name):
+                return format_response(
+                    None,
+                    success=False,
+                    error=f"Dataset '{dataset_name}' does not exist",
+                )
+
+            self.request_params = {
+                "dataset_name": dataset_name,
+                "view": view_stages or [],
+                "selected": selected_samples or [],
+                "selected_labels": selected_labels or [],
+                "params": {},
+            }
+
+            if current_sample:
+                self.request_params["current_sample"] = current_sample
+
+            dataset = fo.load_dataset(dataset_name)
+
+            return format_response(
+                {
+                    "dataset_name": dataset_name,
+                    "dataset_info": {
+                        "num_samples": len(dataset),
+                        "media_type": dataset.media_type,
+                    },
+                    "view_stages_count": (
+                        len(view_stages) if view_stages else 0
+                    ),
+                    "selected_samples_count": (
+                        len(selected_samples) if selected_samples else 0
+                    ),
+                    "selected_labels_count": (
+                        len(selected_labels) if selected_labels else 0
+                    ),
+                    "has_current_sample": current_sample is not None,
+                }
+            )
+
+        except Exception as e:
+            logger.error(f"Failed to set context: {e}")
+            return format_response(None, success=False, error=str(e))
+
+    def get_context(self):
+        """Gets the current execution context state.
+
+        Returns:
+            a dict with current context state
+        """
+        try:
+            if not self.request_params:
+                return format_response(
+                    {
+                        "context_set": False,
+                        "message": "No context set. Use set_context first.",
+                    }
+                )
+
+            dataset_name = self.request_params.get("dataset_name")
+            dataset = fo.load_dataset(dataset_name) if dataset_name else None
+
+            return format_response(
+                {
+                    "context_set": True,
+                    "dataset_name": dataset_name,
+                    "dataset_info": (
+                        {
+                            "num_samples": len(dataset),
+                            "media_type": dataset.media_type,
+                        }
+                        if dataset
+                        else None
+                    ),
+                    "view_stages_count": len(
+                        self.request_params.get("view", [])
+                    ),
+                    "selected_samples_count": len(
+                        self.request_params.get("selected", [])
+                    ),
+                    "selected_labels_count": len(
+                        self.request_params.get("selected_labels", [])
+                    ),
+                    "has_current_sample": "current_sample"
+                    in self.request_params,
+                }
+            )
+
+        except Exception as e:
+            logger.error(f"Failed to get context: {e}")
+            return format_response(None, success=False, error=str(e))
+
+    def get_execution_context(self):
+        """Builds an ExecutionContext from current state.
+
+        Returns:
+            an :class:`ExecutionContext` instance, or None if context not set
+        """
+        if not self.request_params:
+            return None
+
+        return ExecutionContext(request_params=self.request_params)
+
+    def clear_context(self):
+        """Clears the execution context.
+
+        Returns:
+            a dict with success message
+        """
+        self.request_params = {}
+        return format_response({"message": "Context cleared"})

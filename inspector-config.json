@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "fiftyone": {
+      "command": "poetry",
+      "args": ["run", "fiftyone-mcp"],
+      "env": {}
+    }
+  }
+}
