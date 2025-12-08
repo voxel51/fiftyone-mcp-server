@@ -1,6 +1,5 @@
 # FiftyOne MCP Server
-
-![Generated Image November 21, 2025 - 12_18AM](https://github.com/user-attachments/assets/c3f6e44c-4d22-4d69-acf7-45d983df2a86)
+![fo_agent](https://github.com/user-attachments/assets/ffba1886-125c-4c73-ae51-a300b652cffe)
 
 > Control FiftyOne datasets through AI assistants using the Model Context Protocol
 
