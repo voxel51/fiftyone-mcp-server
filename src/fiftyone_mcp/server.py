@@ -19,7 +19,9 @@ from mcp.types import TextContent
 
 from .tools.datasets import get_dataset_tools
 from .tools.operators import get_operator_tools
-from .tools import datasets, operators
+from .tools.plugins import get_plugin_tools
+from .tools.session import get_session_tools
+from .tools import datasets, operators, plugins, session
 from .tools.utils import format_response
 
 
@@ -55,7 +57,12 @@ async def main():
 
     server = Server(server_name)
 
-    all_tools = get_dataset_tools() + get_operator_tools()
+    all_tools = (
+        get_dataset_tools()
+        + get_operator_tools()
+        + get_plugin_tools()
+        + get_session_tools()
+    )
 
     @server.list_tools()
     async def list_tools_handler():
@@ -73,6 +80,16 @@ async def main():
             "execute_operator",
         ]:
             return await operators.handle_tool_call(name, arguments)
+        elif name in [
+            "list_plugins",
+            "get_plugin_info",
+            "download_plugin",
+            "enable_plugin",
+            "disable_plugin",
+        ]:
+            return await plugins.handle_plugin_tool(name, arguments)
+        elif name in ["launch_app", "close_app", "get_session_info"]:
+            return await session.handle_session_tool(name, arguments)
         else:
             result = format_response(
                 None, success=False, error=f"Unknown tool: {name}"
