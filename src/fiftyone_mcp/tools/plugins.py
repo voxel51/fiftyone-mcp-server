@@ -174,7 +174,7 @@ def get_plugin_tools():
     return [
         Tool(
             name="list_plugins",
-            description="Lists available FiftyOne plugins with their operators. Use this to discover what plugins are available and what functionality they provide.",
+            description="Lists available FiftyOne plugins and their operators. Plugins extend functionality by providing additional operators. Key plugins: @voxel51/brain (16 operators for similarity/duplicates/visualization), @voxel51/utils (12 operators for dataset CRUD), @voxel51/io (5 operators for import/export), @voxel51/evaluation (5 operators), @voxel51/annotation (6 operators), @voxel51/zoo (2 operators). Use this to discover what plugins are installed and what operators they provide.",
             inputSchema={
                 "type": "object",
                 "properties": {
@@ -201,7 +201,7 @@ def get_plugin_tools():
         ),
         Tool(
             name="download_plugin",
-            description="Downloads and installs a FiftyOne plugin from GitHub or a URL. Use this to install new plugins that provide additional operators.",
+            description="Downloads and installs a FiftyOne plugin from GitHub. Plugins immediately add new operators to the system (accessible via list_operators and execute_operator). Common repo: 'voxel51/fiftyone-plugins' contains all official plugins. After installation, use enable_plugin to activate the plugin's operators.",
             inputSchema={
                 "type": "object",
                 "properties": {
@@ -225,7 +225,7 @@ def get_plugin_tools():
         ),
         Tool(
             name="enable_plugin",
-            description="Enables a downloaded FiftyOne plugin, making its operators available for use.",
+            description="Enables a downloaded FiftyOne plugin, making its operators immediately available through list_operators and execute_operator. Required after download_plugin to activate the plugin's functionality.",
             inputSchema={
                 "type": "object",
                 "properties": {

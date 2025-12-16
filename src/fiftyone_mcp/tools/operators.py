@@ -230,7 +230,7 @@ def get_operator_tools():
     return [
         Tool(
             name="set_context",
-            description="Set the execution context for FiftyOne operations. This defines what dataset, view, and selection subsequent operators will work with.",
+            description="Set the execution context for FiftyOne operators. REQUIRED before executing operators or getting schemas. This defines what dataset, view, and selection subsequent operators will work with. The context persists across multiple operator executions until changed.",
             inputSchema={
                 "type": "object",
                 "properties": {
@@ -268,7 +268,7 @@ def get_operator_tools():
         ),
         Tool(
             name="list_operators",
-            description="List all available FiftyOne operators that can be executed.",
+            description="Discover all available FiftyOne operators (80+ built-in operators from plugins). Returns operators from installed plugins including: @voxel51/operators (50+ core operators like tag_samples, clone_samples), @voxel51/brain (similarity, duplicates, visualization), @voxel51/utils (create_dataset, delete_dataset, clone_dataset), @voxel51/io (import/export), @voxel51/evaluation, @voxel51/annotation, @voxel51/zoo. Use this FIRST to discover what operators are available before executing them.",
             inputSchema={
                 "type": "object",
                 "properties": {
@@ -286,13 +286,13 @@ def get_operator_tools():
         ),
         Tool(
             name="get_operator_schema",
-            description="Get the input schema for a specific operator. The schema is dynamically generated based on the current execution context.",
+            description="Get the dynamic input schema for a specific operator. Schemas are context-aware and change based on the current dataset/view/selection. Use this AFTER list_operators to understand what parameters an operator accepts. Requires context to be set via set_context first.",
             inputSchema={
                 "type": "object",
                 "properties": {
                     "operator_uri": {
                         "type": "string",
-                        "description": "The URI of the operator (e.g., '@voxel51/operators/tag_samples')",
+                        "description": "The URI of the operator from list_operators (e.g., '@voxel51/brain/compute_similarity', '@voxel51/utils/create_dataset')",
                     }
                 },
                 "required": ["operator_uri"],
@@ -300,13 +300,13 @@ def get_operator_tools():
         ),
         Tool(
             name="execute_operator",
-            description="Execute a FiftyOne operator with the current execution context and provided parameters.",
+            description="Execute any FiftyOne operator with the current execution context. This provides access to 80+ operators from the plugin ecosystem. WORKFLOW: (1) Call list_operators to discover available operators, (2) Call get_operator_schema to see required parameters, (3) Call execute_operator with the operator URI and params. Common examples: '@voxel51/brain/compute_similarity' for image similarity, '@voxel51/utils/create_dataset' for dataset creation, '@voxel51/operators/tag_samples' for tagging. Requires context set via set_context first.",
             inputSchema={
                 "type": "object",
                 "properties": {
                     "operator_uri": {
                         "type": "string",
-                        "description": "The URI of the operator to execute",
+                        "description": "The URI of the operator to execute (from list_operators)",
                     },
                     "params": {
                         "type": "object",
