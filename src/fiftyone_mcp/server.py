@@ -88,7 +88,13 @@ async def main():
             "disable_plugin",
         ]:
             return await plugins.handle_plugin_tool(name, arguments)
-        elif name in ["launch_app", "close_app", "get_session_info"]:
+        elif name in [
+            "launch_app",
+            "close_app",
+            "get_session_info",
+            "set_view",
+            "clear_view",
+        ]:
             return await session.handle_session_tool(name, arguments)
         else:
             result = format_response(

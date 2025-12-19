@@ -14,7 +14,7 @@ import traceback
 import fiftyone as fo
 from eta.core.utils import PackageError
 from fiftyone.operators import registry as op_registry
-from fiftyone.operators.executor import ExecutionContext
+from fiftyone.operators.executor import ExecutionContext, Executor
 from mcp.types import Tool, TextContent
 
 from .utils import format_response, safe_serialize
@@ -529,7 +529,10 @@ class ContextManager(object):
         if not self.request_params:
             return None
 
-        return ExecutionContext(request_params=self.request_params)
+        return ExecutionContext(
+            request_params=self.request_params,
+            executor=Executor(),
+        )
 
     def clear_context(self):
         """Clears the execution context.
