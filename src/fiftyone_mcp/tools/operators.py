@@ -8,6 +8,8 @@ Operator execution tools for FiftyOne MCP server.
 
 import json
 import logging
+import re
+import traceback
 
 import fiftyone as fo
 from fiftyone.operators import registry as op_registry
@@ -20,6 +22,69 @@ from .utils import format_response, safe_serialize
 logger = logging.getLogger(__name__)
 
 _context_manager = None
+
+
+def _parse_dependency_error(error, operator_uri):
+    """Parses a dependency error and returns structured information.
+
+    Args:
+        error: an ImportError or ModuleNotFoundError
+        operator_uri: the URI of the operator that failed
+
+    Returns:
+        a dict with missing_package, install_command, and docs_url
+    """
+    error_str = str(error)
+
+    match = re.search(r"No module named ['\"]([^'\"]+)['\"]", error_str)
+    if match:
+        missing_module = match.group(1).split(".")[0]
+    else:
+        missing_module = "unknown"
+
+    dependency_map = {
+        "torch": {
+            "package": "torch",
+            "install": "pip install torch torchvision",
+            "docs": "https://docs.voxel51.com/user_guide/brain.html#installation",
+        },
+        "tensorflow": {
+            "package": "tensorflow",
+            "install": "pip install tensorflow",
+            "docs": "https://docs.voxel51.com/user_guide/brain.html#installation",
+        },
+        "sklearn": {
+            "package": "scikit-learn",
+            "install": "pip install scikit-learn",
+            "docs": "https://docs.voxel51.com/user_guide/brain.html#installation",
+        },
+        "cv2": {
+            "package": "opencv-python",
+            "install": "pip install opencv-python",
+            "docs": "https://docs.voxel51.com/getting_started/install.html",
+        },
+        "pycocotools": {
+            "package": "pycocotools",
+            "install": "pip install pycocotools",
+            "docs": "https://docs.voxel51.com/user_guide/evaluation.html",
+        },
+    }
+
+    dep_info = dependency_map.get(
+        missing_module,
+        {
+            "package": missing_module,
+            "install": f"pip install {missing_module}",
+            "docs": "https://docs.voxel51.com/getting_started/install.html",
+        },
+    )
+
+    return {
+        "missing_package": dep_info["package"],
+        "install_command": dep_info["install"],
+        "docs_url": dep_info["docs"],
+        "error_message": f"Operator '{operator_uri}' requires '{dep_info['package']}' which is not installed",
+    }
 
 
 def get_context_manager():
@@ -216,9 +281,31 @@ def execute_operator(operator_uri, params=None):
             }
         )
 
+    except (ImportError, ModuleNotFoundError) as e:
+        # Handle missing dependency errors with structured response
+        error_info = _parse_dependency_error(e, operator_uri)
+        logger.warning(
+            f"Missing dependency for '{operator_uri}': {error_info['missing_package']}"
+        )
+        return format_response(
+            None,
+            success=False,
+            error_type="missing_dependency",
+            error=error_info["error_message"],
+            missing_package=error_info["missing_package"],
+            install_command=error_info["install_command"],
+            docs_url=error_info["docs_url"],
+            traceback=traceback.format_exc(),
+        )
+
     except Exception as e:
         logger.error(f"Failed to execute operator '{operator_uri}': {e}")
-        return format_response(None, success=False, error=str(e))
+        return format_response(
+            None,
+            success=False,
+            error=str(e),
+            traceback=traceback.format_exc(),
+        )
 
 
 def get_operator_tools():

@@ -14,13 +14,14 @@ import fiftyone as fo
 logger = logging.getLogger(__name__)
 
 
-def format_response(data, success=True, error=None):
+def format_response(data, success=True, error=None, **kwargs):
     """Formats a standardized response for MCP tools.
 
     Args:
         data: the response data
         success (True): whether the operation succeeded
         error (None): an optional error message if operation failed
+        **kwargs: additional fields to include in the response
 
     Returns:
         a formatted response dict
@@ -29,6 +30,11 @@ def format_response(data, success=True, error=None):
 
     if error:
         response["error"] = error
+
+    # Add any additional fields (error_type, missing_package, install_command, etc.)
+    for key, value in kwargs.items():
+        if value is not None:
+            response[key] = value
 
     return response
 
