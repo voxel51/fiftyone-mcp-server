@@ -235,14 +235,11 @@ async def execute_operator_async(operator_uri, params=None):
             )
 
         cm = get_context_manager()
-        if not cm.request_params:
-            return format_response(
-                None,
-                success=False,
-                error="Context not set. Use set_context first before executing operators.",
-            )
+        if cm.request_params:
+            request_params = dict(cm.request_params)
+        else:
+            request_params = {}
 
-        request_params = dict(cm.request_params)
         request_params["params"] = params or {}
 
         execution_result = await execute_or_delegate_operator(
