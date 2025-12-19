@@ -31,7 +31,6 @@ def format_response(data, success=True, error=None, **kwargs):
     if error:
         response["error"] = error
 
-    # Add any additional fields (error_type, missing_package, install_command, etc.)
     for key, value in kwargs.items():
         if value is not None:
             response[key] = value
