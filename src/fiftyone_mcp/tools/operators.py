@@ -6,6 +6,7 @@ Operator execution tools for FiftyOne MCP server.
 |
 """
 
+import asyncio
 import json
 import logging
 import re
@@ -14,7 +15,11 @@ import traceback
 import fiftyone as fo
 from eta.core.utils import PackageError
 from fiftyone.operators import registry as op_registry
-from fiftyone.operators.executor import ExecutionContext, Executor
+from fiftyone.operators.executor import (
+    ExecutionContext,
+    Executor,
+    execute_or_delegate_operator,
+)
 from mcp.types import Tool, TextContent
 
 from .utils import format_response, safe_serialize
@@ -207,8 +212,11 @@ def get_operator_schema(operator_uri):
         return format_response(None, success=False, error=str(e))
 
 
-def execute_operator(operator_uri, params=None):
-    """Executes a FiftyOne operator.
+async def execute_operator_async(operator_uri, params=None):
+    """Executes a FiftyOne operator asynchronously.
+
+    Uses FiftyOne's execute_or_delegate_operator which properly handles
+    generators, delegated execution, and other operator execution modes.
 
     Args:
         operator_uri: the URI of the operator to execute
@@ -227,22 +235,33 @@ def execute_operator(operator_uri, params=None):
             )
 
         cm = get_context_manager()
-        ctx = cm.get_execution_context()
-        if ctx is None:
+        if not cm.request_params:
             return format_response(
                 None,
                 success=False,
                 error="Context not set. Use set_context first before executing operators.",
             )
-        if params:
-            ctx.params.update(params)
-        result = operator.execute(ctx)
+
+        request_params = dict(cm.request_params)
+        request_params["params"] = params or {}
+
+        execution_result = await execute_or_delegate_operator(
+            operator_uri,
+            request_params,
+            exhaust=True,
+        )
+
+        execution_result.raise_exceptions()
 
         return format_response(
             {
                 "operator_uri": operator_uri,
                 "success": True,
-                "result": safe_serialize(result) if result else None,
+                "result": (
+                    safe_serialize(execution_result.result)
+                    if execution_result
+                    else None
+                ),
             }
         )
 
@@ -257,6 +276,21 @@ def execute_operator(operator_uri, params=None):
             error=str(e),
             traceback=traceback.format_exc(),
         )
+
+
+def execute_operator(operator_uri, params=None):
+    """Executes a FiftyOne operator.
+
+    Synchronous wrapper around execute_operator_async.
+
+    Args:
+        operator_uri: the URI of the operator to execute
+        params (None): an optional dict of parameters for the operator
+
+    Returns:
+        a dict containing execution result
+    """
+    return asyncio.run(execute_operator_async(operator_uri, params))
 
 
 def get_operator_tools():
@@ -385,7 +419,7 @@ async def handle_tool_call(name, arguments):
     elif name == "get_operator_schema":
         result = get_operator_schema(arguments["operator_uri"])
     elif name == "execute_operator":
-        result = execute_operator(
+        result = await execute_operator_async(
             operator_uri=arguments["operator_uri"],
             params=arguments.get("params", {}),
         )
