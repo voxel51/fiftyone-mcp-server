@@ -1,5 +1,7 @@
 # FiftyOne MCP Server
 
+<!-- mcp-name: io.github.AdonaiVera/fiftyone-mcp-server -->
+
 <div align="center">
 <p align="center">
 
@@ -10,6 +12,9 @@
 ![fo_agent](https://github.com/user-attachments/assets/ffba1886-125c-4c73-ae51-a300b652cffe)
 
 > Control FiftyOne datasets through AI assistants using the Model Context Protocol
+
+[![PyPI](https://img.shields.io/pypi/v/fiftyone-mcp-server.svg)](https://pypi.org/project/fiftyone-mcp-server/)
+[![Python](https://img.shields.io/pypi/pyversions/fiftyone-mcp-server.svg)](https://pypi.org/project/fiftyone-mcp-server/)
 
 </p>
 </div>
@@ -22,36 +27,179 @@ Enable ChatGPT and Claude to explore datasets, execute operators, and build comp
 
 - **Dataset Management (3 tools)** - List, load, and summarize datasets
 - **Operator System (5 tools)** - Execute any FiftyOne operator dynamically
-  - Context management (dataset/view/selection)
-  - Operator discovery and schema resolution
-  - Dynamic execution interface
 - **Plugin Management (5 tools)** - Discover and install FiftyOne plugins
-  - List available plugins and their operators
-  - Install plugins from GitHub on demand
-  - Enable/disable plugins dynamically
 - **Session Management (3 tools)** - Control FiftyOne App for delegated execution
-  - Launch/close FiftyOne App server
-  - Required for background operators (brain, evaluation, etc.)
-  - Session info and status monitoring
 - **Natural Language Workflows** - Multi-step operations through conversation
 - **ChatGPT & Claude Compatible** - Works with desktop apps
 
-## Installation
+## Quick Start
+
+### Option 1: pip (Simplest)
 
 ```bash
-git clone https://github.com/AdonaiVera/fiftyone-mcp-server.git
-cd fiftyone-mcp-server
-poetry install
+pip install fiftyone-mcp-server
 ```
 
-**Requirements:** Python 3.10-3.13, Poetry, FiftyOne
+Then add to your AI tool config and restart:
 
-## Configuration
+<details>
+<summary><b>Claude Desktop</b></summary>
 
-Add to MCP config:
+Edit `~/Library/Application Support/Claude/claude_desktop_config.json`:
 
-- ChatGPT: `~/Library/Application Support/ChatGPT/config.json`
-- Claude: `~/Library/Application Support/Claude/claude_desktop_config.json`
+```json
+{
+  "mcpServers": {
+    "fiftyone": {
+      "command": "fiftyone-mcp"
+    }
+  }
+}
+```
+
+</details>
+
+<details>
+<summary><b>Claude Code</b></summary>
+
+```bash
+claude mcp add fiftyone -- fiftyone-mcp
+```
+
+</details>
+
+<details>
+<summary><b>Cursor</b></summary>
+
+Add to Cursor MCP settings:
+
+```json
+{
+  "fiftyone": {
+    "command": "fiftyone-mcp"
+  }
+}
+```
+
+</details>
+
+<details>
+<summary><b>VSCode</b></summary>
+
+Add to `.vscode/mcp.json`:
+
+```json
+{
+  "servers": {
+    "fiftyone": {
+      "command": "fiftyone-mcp"
+    }
+  }
+}
+```
+
+</details>
+
+<details>
+<summary><b>ChatGPT Desktop</b></summary>
+
+Edit `~/Library/Application Support/ChatGPT/config.json`:
+
+```json
+{
+  "mcpServers": {
+    "fiftyone": {
+      "command": "fiftyone-mcp"
+    }
+  }
+}
+```
+
+</details>
+
+### Option 2: uvx (No Install Needed)
+
+If you have [uv](https://github.com/astral-sh/uv) installed:
+
+```json
+{
+  "mcpServers": {
+    "fiftyone": {
+      "command": "uvx",
+      "args": ["fiftyone-mcp-server"]
+    }
+  }
+}
+```
+
+This downloads and runs the latest version automatically.
+
+## Usage
+
+After configuration, restart your AI assistant and try:
+
+```
+"List all my datasets"
+"Load quickstart dataset and show summary"
+"What operators are available for managing samples?"
+"Set context to my dataset, then tag high-confidence samples"
+"What plugins are available? Install the brain plugin"
+"Find similar images in my dataset"
+```
+
+The server starts with 50 built-in operators. Install plugins to expand functionality - the AI can discover and install plugins automatically when needed (brain, zoo, annotation, evaluation, and more).
+
+## Architecture
+
+| Component              | Description                                      |
+| ---------------------- | ------------------------------------------------ |
+| **Operator System**    | 80+ FiftyOne operators through unified interface |
+| **Plugin System**      | AI discovers and installs plugins on demand      |
+| **Session System**     | Launch FiftyOne App for delegated operators      |
+| **Context Management** | Dataset, view, and selection state               |
+
+**Design Philosophy:** Minimal tool count (16 tools), maximum flexibility (full operator & plugin ecosystem).
+
+## Contributing
+
+We welcome contributions! Here's how to set up a local development environment.
+
+### Local Development Setup
+
+```bash
+# Clone the repository
+git clone https://github.com/AdonaiVera/fiftyone-mcp-server.git
+cd fiftyone-mcp-server
+
+# Install Poetry (if not installed)
+curl -sSL https://install.python-poetry.org | python3 -
+
+# Install dependencies
+poetry install
+
+# Run the server locally
+poetry run fiftyone-mcp
+```
+
+### Testing Your Changes
+
+```bash
+# Run tests
+poetry run pytest
+
+# Code formatting
+poetry run black -l 79 src/
+
+# Linting
+poetry run pylint --errors-only src/
+
+# Test with MCP Inspector
+npx @modelcontextprotocol/inspector poetry run fiftyone-mcp
+```
+
+### Using Local Version with Claude
+
+To test your local changes with Claude Desktop, update your config:
 
 ```json
 {
@@ -65,77 +213,13 @@ Add to MCP config:
 }
 ```
 
-Restart your AI assistant.
-
-## Usage
-
-```
-# Run
-poetry run fiftyone-mcp
-```
-
-And then you can query directly the agent:
-
-```
-"List all my datasets"
-"Load quickstart dataset and show summary"
-"What operators are available for managing samples?"
-"Set context to my dataset, then tag high-confidence samples"
-"What plugins are available? Install the brain plugin"
-"Find similar images in my dataset"
-```
-
-Example of functionality:
-
-The server starts with 50 built-in operators. Install plugins to expand functionality - the AI can discover and install plugins automatically when needed (brain, zoo, annotation, evaluation, and more).
-
-## Architecture
-
-**Operator-Based Design:**
-
-- Exposes 80+ FiftyOne operators through unified interface
-- Dynamic schema resolution based on current context
-- Context state management (dataset, view, selection)
-
-**Plugin Architecture:**
-
-- AI discovers plugins on demand through `list_plugins`
-- Installs plugins automatically when needed
-- All plugin operators immediately available after installation
-- Self-expanding capability set
-
-**Session Architecture:**
-
-- AI can launch FiftyOne App when needed for delegated operators
-- Enables background execution for compute-intensive operations
-- Automatic session management through natural conversation
-
-**Design Philosophy:**
-
-- Minimal tool count (16 tools total)
-- Maximum flexibility (access to full operator & plugin ecosystem)
-- Mirrors FiftyOne App's execution model
-
-## Development
-
-```bash
-# Run tests
-poetry run pytest
-
-# Code quality
-poetry run black -l 79 src/
-poetry run pylint --errors-only src/
-
-# Test with MCP Inspector
-npx @modelcontextprotocol/inspector poetry run fiftyone-mcp
-```
-
 ## Resources
 
 - [FiftyOne Docs](https://docs.voxel51.com/)
 - [FiftyOne Operators](https://docs.voxel51.com/plugins/developing_plugins.html)
 - [Model Context Protocol](https://modelcontextprotocol.io)
 - [MCP Inspector](https://github.com/modelcontextprotocol/inspector)
+- [PyPI Package](https://pypi.org/project/fiftyone-mcp-server/)
 
 ---
 

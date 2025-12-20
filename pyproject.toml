@@ -1,10 +1,27 @@
 [tool.poetry]
 name = "fiftyone-mcp-server"
-version = "0.1.0"
+version = "0.1.1"
 description = "MCP server exposing FiftyOne dataset analysis tools"
-authors = ["FiftyOne MCP Contributors"]
+authors = ["Adonai Vera <adonai.vera@gmail.com>"]
 license = "MIT"
 readme = "README.md"
+homepage = "https://github.com/AdonaiVera/fiftyone-mcp-server"
+repository = "https://github.com/AdonaiVera/fiftyone-mcp-server"
+documentation = "https://github.com/AdonaiVera/fiftyone-mcp-server#readme"
+keywords = ["mcp", "fiftyone", "computer-vision", "ai", "datasets", "model-context-protocol"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
 packages = [{include = "fiftyone_mcp", from = "src"}]
 
 [tool.poetry.dependencies]

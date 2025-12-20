@@ -139,3 +139,7 @@ Thumbs.db
 # FiftyOne
 .fiftyone/
 fiftyone.db
+
+# MCP Registry
+.mcpregistry_registry_token
+.mcpregistry_github_token
