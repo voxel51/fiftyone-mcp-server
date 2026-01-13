@@ -71,12 +71,14 @@ claude mcp add fiftyone -- fiftyone-mcp
 <details>
 <summary><b>Cursor</b></summary>
 
-Add to Cursor MCP settings:
+Add to `~/.cursor/mcp.json`:
 
 ```json
 {
-  "fiftyone": {
-    "command": "fiftyone-mcp"
+  "mcpServers": {
+    "fiftyone": {
+      "command": "fiftyone-mcp"
+    }
   }
 }
 ```
