@@ -5,9 +5,9 @@ description = "MCP server exposing FiftyOne dataset analysis tools"
 authors = ["Adonai Vera <adonai.vera@gmail.com>"]
 license = "MIT"
 readme = "README.md"
-homepage = "https://github.com/AdonaiVera/fiftyone-mcp-server"
-repository = "https://github.com/AdonaiVera/fiftyone-mcp-server"
-documentation = "https://github.com/AdonaiVera/fiftyone-mcp-server#readme"
+homepage = "https://github.com/voxel51/fiftyone-mcp-server"
+repository = "https://github.com/voxel51/fiftyone-mcp-server"
+documentation = "https://github.com/voxel51/fiftyone-mcp-server#readme"
 keywords = ["mcp", "fiftyone", "computer-vision", "ai", "datasets", "model-context-protocol"]
 classifiers = [
     "Development Status :: 4 - Beta",

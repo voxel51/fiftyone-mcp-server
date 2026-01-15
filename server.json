@@ -1,9 +1,9 @@
 {
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
-  "name": "io.github.AdonaiVera/fiftyone-mcp-server",
+  "name": "io.github.voxel51/fiftyone-mcp-server",
   "description": "Control FiftyOne computer vision datasets through AI assistants using 80+ operators.",
   "repository": {
-    "url": "https://github.com/AdonaiVera/fiftyone-mcp-server",
+    "url": "https://github.com/voxel51/fiftyone-mcp-server",
     "source": "github"
   },
   "version": "0.1.2",
