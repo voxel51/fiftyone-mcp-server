@@ -15,6 +15,7 @@ import traceback
 import fiftyone as fo
 from eta.core.utils import PackageError
 from fiftyone.operators import registry as op_registry
+from fiftyone.operators.delegated import DelegatedOperationService
 from fiftyone.operators.executor import (
     ExecutionContext,
     Executor,
@@ -154,6 +155,8 @@ def list_operators(builtin_only=None, operator_type=None):
                     "plugin_name": op.plugin_name,
                     "builtin": op.builtin,
                     "dynamic": op.config.dynamic,
+                    "allow_delegated_execution": op.config.allow_delegated_execution,
+                    "allow_immediate_execution": op.config.allow_immediate_execution,
                 }
             )
 
@@ -212,7 +215,65 @@ def get_operator_schema(operator_uri):
         return format_response(None, success=False, error=str(e))
 
 
-async def execute_operator_async(operator_uri, params=None):
+def _queue_delegated_operator(
+    operator_uri, request_params, delegation_target=None
+):
+    """Queues an operator for delegated (background) execution.
+
+    Bypasses the operator's ``allow_delegated_execution`` flag and
+    queues directly via
+    :class:`fiftyone.operators.delegated.DelegatedOperationService`,
+    mirroring the behavior of pipeline delegation.
+
+    Args:
+        operator_uri: the URI of the operator to queue
+        request_params: the request params dict (already built by caller)
+        delegation_target (None): an optional orchestrator target
+
+    Returns:
+        a dict containing the queued operation info
+    """
+    try:
+        request_params = dict(request_params)
+        request_params["delegated"] = True
+        if delegation_target:
+            request_params["delegation_target"] = delegation_target
+
+        label = operator_uri.split("/")[-1]
+
+        svc = DelegatedOperationService()
+        op = svc.queue_operation(
+            operator=operator_uri,
+            label=label,
+            delegation_target=delegation_target,
+            context={"request_params": request_params},
+        )
+
+        return format_response(
+            {
+                "operator_uri": operator_uri,
+                "success": True,
+                "delegated": True,
+                "operation_id": str(op.id),
+                "message": "Operation queued for delegated execution",
+            }
+        )
+
+    except Exception as e:
+        logger.error(
+            "Failed to queue delegated operator '%s': %s", operator_uri, e
+        )
+        return format_response(
+            None,
+            success=False,
+            error=str(e),
+            traceback=traceback.format_exc(),
+        )
+
+
+async def execute_operator_async(
+    operator_uri, params=None, delegate=False, delegation_target=None
+):
     """Executes a FiftyOne operator asynchronously.
 
     Uses FiftyOne's execute_or_delegate_operator which properly handles
@@ -221,6 +282,10 @@ async def execute_operator_async(operator_uri, params=None):
     Args:
         operator_uri: the URI of the operator to execute
         params (None): an optional dict of parameters for the operator
+        delegate (False): whether to delegate execution to a background
+            worker instead of running immediately
+        delegation_target (None): an optional orchestrator target for
+            delegated execution
 
     Returns:
         a dict containing execution result
@@ -242,6 +307,11 @@ async def execute_operator_async(operator_uri, params=None):
 
         request_params["params"] = params or {}
 
+        if delegate:
+            return _queue_delegated_operator(
+                operator_uri, request_params, delegation_target
+            )
+
         execution_result = await execute_or_delegate_operator(
             operator_uri,
             request_params,
@@ -254,6 +324,7 @@ async def execute_operator_async(operator_uri, params=None):
             {
                 "operator_uri": operator_uri,
                 "success": True,
+                "delegated": False,
                 "result": (
                     safe_serialize(execution_result.result)
                     if execution_result
@@ -275,7 +346,9 @@ async def execute_operator_async(operator_uri, params=None):
         )
 
 
-def execute_operator(operator_uri, params=None):
+def execute_operator(
+    operator_uri, params=None, delegate=False, delegation_target=None
+):
     """Executes a FiftyOne operator.
 
     Synchronous wrapper around execute_operator_async.
@@ -283,11 +356,19 @@ def execute_operator(operator_uri, params=None):
     Args:
         operator_uri: the URI of the operator to execute
         params (None): an optional dict of parameters for the operator
+        delegate (False): whether to delegate execution to a background
+            worker instead of running immediately
+        delegation_target (None): an optional orchestrator target for
+            delegated execution
 
     Returns:
         a dict containing execution result
     """
-    return asyncio.run(execute_operator_async(operator_uri, params))
+    return asyncio.run(
+        execute_operator_async(
+            operator_uri, params, delegate, delegation_target
+        )
+    )
 
 
 def get_operator_tools():
@@ -369,7 +450,7 @@ def get_operator_tools():
         ),
         Tool(
             name="execute_operator",
-            description="Execute any FiftyOne operator with the current execution context. This provides access to 80+ operators from the plugin ecosystem. WORKFLOW: (1) Call list_operators to discover available operators, (2) Call get_operator_schema to see required parameters, (3) Call execute_operator with the operator URI and params. Common examples: '@voxel51/brain/compute_similarity' for image similarity, '@voxel51/utils/create_dataset' for dataset creation, '@voxel51/operators/tag_samples' for tagging. Requires context set via set_context first.",
+            description="Execute any FiftyOne operator with the current execution context. This provides access to 80+ operators from the plugin ecosystem. WORKFLOW: (1) Call list_operators to discover available operators, (2) Call get_operator_schema to see required parameters, (3) Call execute_operator with the operator URI and params. Set delegate=true for long-running operations (compute_similarity, compute_visualization, etc.) to queue them for background execution. Use list_delegated_operations to monitor delegated operations. Requires context set via set_context first.",
             inputSchema={
                 "type": "object",
                 "properties": {
@@ -380,6 +461,15 @@ def get_operator_tools():
                     "params": {
                         "type": "object",
                         "description": "Parameters for the operator. Use get_operator_schema to see what parameters are required.",
+                    },
+                    "delegate": {
+                        "type": "boolean",
+                        "description": "If true, queue the operation for delegated (background) execution instead of running immediately. Use for long-running operations. Check list_operators to see which operators support delegation (allow_delegated_execution=true).",
+                        "default": False,
+                    },
+                    "delegation_target": {
+                        "type": "string",
+                        "description": "Optional orchestrator target for delegated execution (e.g., an Airflow queue name).",
                     },
                 },
                 "required": ["operator_uri"],
@@ -419,6 +509,8 @@ async def handle_tool_call(name, arguments):
         result = await execute_operator_async(
             operator_uri=arguments["operator_uri"],
             params=arguments.get("params", {}),
+            delegate=arguments.get("delegate", False),
+            delegation_target=arguments.get("delegation_target"),
         )
     else:
         result = format_response(

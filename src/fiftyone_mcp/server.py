@@ -19,9 +19,10 @@ from mcp.types import TextContent
 
 from .tools.datasets import get_dataset_tools
 from .tools.operators import get_operator_tools
+from .tools.pipelines import get_pipeline_tools
 from .tools.plugins import get_plugin_tools
 from .tools.session import get_session_tools
-from .tools import datasets, operators, plugins, session
+from .tools import datasets, operators, pipelines, plugins, session
 from .tools.utils import format_response
 
 
@@ -60,6 +61,7 @@ async def main():
     all_tools = (
         get_dataset_tools()
         + get_operator_tools()
+        + get_pipeline_tools()
         + get_plugin_tools()
         + get_session_tools()
     )
@@ -88,6 +90,8 @@ async def main():
             "disable_plugin",
         ]:
             return await plugins.handle_plugin_tool(name, arguments)
+        elif name in ["execute_pipeline", "list_delegated_operations"]:
+            return await pipelines.handle_pipeline_tool(name, arguments)
         elif name in [
             "launch_app",
             "close_app",
