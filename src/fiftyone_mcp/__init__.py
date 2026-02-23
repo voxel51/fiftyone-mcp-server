@@ -3,7 +3,7 @@ FiftyOne MCP Server.
 
 Expose FiftyOne dataset tools via Model Context Protocol.
 
-| Copyright 2017-2025, Voxel51, Inc.
+| Copyright 2017-2026, Voxel51, Inc.
 | `voxel51.com <https://voxel51.com/>`_
 |
 """

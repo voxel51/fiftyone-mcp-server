@@ -1,7 +1,7 @@
 """
 Session management tools for FiftyOne MCP server.
 
-| Copyright 2017-2025, Voxel51, Inc.
+| Copyright 2017-2026, Voxel51, Inc.
 | `voxel51.com <https://voxel51.com/>`_
 |
 """
@@ -21,13 +21,36 @@ logger = logging.getLogger(__name__)
 _active_session = None
 
 
-def launch_app(dataset_name=None, port=None, remote=False):
+def _ensure_session():
+    """Returns the active session, attaching to an existing one if needed.
+
+    If no session is set, attempts to connect to the FiftyOne App already
+    running on the configured port without launching a new server or opening
+    a browser window.
+
+    Returns:
+        a :class:`fiftyone.core.session.Session`, or None if unavailable
+    """
+    global _active_session
+
+    if _active_session is not None:
+        return _active_session
+
+    try:
+        port = fo.config.default_app_port or 5151
+        _active_session = fo.launch_app(port=port)
+    except Exception as e:
+        logger.warning("Could not attach to existing FiftyOne session: %s", e)
+
+    return _active_session
+
+
+def launch_app(dataset_name=None, port=None):
     """Launches the FiftyOne App.
 
     Args:
         dataset_name (None): optional dataset name to load in the app
         port (None): optional port number for the app server
-        remote (False): whether to launch in remote mode
 
     Returns:
         a dict with success status and session info
@@ -39,15 +62,13 @@ def launch_app(dataset_name=None, port=None, remote=False):
         if dataset_name:
             dataset = fo.load_dataset(dataset_name)
 
-        session = fo.launch_app(dataset=dataset, port=port, remote=remote)
-
+        session = fo.launch_app(dataset=dataset, port=port)
         _active_session = session
 
         session_info = {
             "url": session.url if hasattr(session, "url") else None,
             "dataset": dataset_name,
             "port": port,
-            "remote": remote,
         }
 
         return format_response(
@@ -55,7 +76,7 @@ def launch_app(dataset_name=None, port=None, remote=False):
             success=True,
         )
     except Exception as e:
-        logger.error(f"Error launching FiftyOne App: {e}")
+        logger.error("Error launching FiftyOne App: %s", e)
         return format_response(None, success=False, error=str(e))
 
 
@@ -75,7 +96,7 @@ def close_app():
             {"message": "FiftyOne App closed successfully"}, success=True
         )
     except Exception as e:
-        logger.error(f"Error closing FiftyOne App: {e}")
+        logger.error("Error closing FiftyOne App: %s", e)
         return format_response(None, success=False, error=str(e))
 
 
@@ -85,37 +106,29 @@ def get_session_info():
     Returns:
         a dict with success status and session details
     """
-    global _active_session
+    session = _ensure_session()
+
+    if session is None:
+        return format_response(
+            {"active": False, "message": "No active session"}, success=True
+        )
 
     try:
-        if _active_session is None:
-            return format_response(
-                {"active": False, "message": "No active session"}, success=True
-            )
-
-        view = _active_session.view
+        view = session.view
         info = {
             "active": True,
-            "url": (
-                _active_session.url
-                if hasattr(_active_session, "url")
-                else None
-            ),
-            "dataset": (
-                _active_session.dataset.name
-                if _active_session.dataset
-                else None
-            ),
+            "url": session.url if hasattr(session, "url") else None,
+            "dataset": (session.dataset.name if session.dataset else None),
             "view": {
                 "name": view.name if view else None,
                 "num_samples": len(view) if view else None,
-                "stages": len(view._stages) if view else 0,
+                "stages": len(view.stages) if view else 0,
             },
         }
 
         return format_response(info, success=True)
     except Exception as e:
-        logger.error(f"Error getting session info: {e}")
+        logger.error("Error getting session info: %s", e)
         return format_response(None, success=False, error=str(e))
 
 
@@ -140,22 +153,18 @@ def set_view(
     Returns:
         a dict with view info
     """
-    global _active_session
+    session = _ensure_session()
+
+    if session is None:
+        return format_response(
+            None, success=False, error="No active session available."
+        )
 
     try:
-        if _active_session is None:
-            return format_response(
-                None,
-                success=False,
-                error="No active session. Use launch_app first.",
-            )
-
-        dataset = _active_session.dataset
+        dataset = session.dataset
         if dataset is None:
             return format_response(
-                None,
-                success=False,
-                error="No dataset loaded in session.",
+                None, success=False, error="No dataset loaded in session."
             )
 
         if view_name:
@@ -163,15 +172,12 @@ def set_view(
                 return format_response(
                     None,
                     success=False,
-                    error=f"Saved view '{view_name}' not found.",
+                    error="Saved view '%s' not found." % view_name,
                 )
             view = dataset.load_saved_view(view_name)
-            _active_session.view = view
+            session.view = view
             return format_response(
-                {
-                    "view_name": view_name,
-                    "num_samples": len(view),
-                }
+                {"view_name": view_name, "num_samples": len(view)}
             )
 
         view = dataset.view()
@@ -195,17 +201,14 @@ def set_view(
         if sample_ids:
             view = view.select(sample_ids)
 
-        _active_session.view = view
+        session.view = view
 
         return format_response(
-            {
-                "num_samples": len(view),
-                "stages": len(view._stages),
-            }
+            {"num_samples": len(view), "stages": len(view.stages)}
         )
 
     except Exception as e:
-        logger.error(f"Error setting view: {e}")
+        logger.error("Error setting view: %s", e)
         return format_response(None, success=False, error=str(e))
 
 
@@ -215,22 +218,18 @@ def clear_view():
     Returns:
         a dict with success status
     """
-    global _active_session
+    session = _ensure_session()
+
+    if session is None:
+        return format_response(
+            None, success=False, error="No active session available."
+        )
 
     try:
-        if _active_session is None:
-            return format_response(
-                None,
-                success=False,
-                error="No active session. Use launch_app first.",
-            )
-
-        _active_session.clear_view()
-
+        session.clear_view()
         return format_response({"message": "View cleared"})
-
     except Exception as e:
-        logger.error(f"Error clearing view: {e}")
+        logger.error("Error clearing view: %s", e)
         return format_response(None, success=False, error=str(e))
 
 
@@ -254,11 +253,6 @@ def get_session_tools():
                     "port": {
                         "type": "integer",
                         "description": "Optional port number for the app server. If not specified, uses default port",
-                    },
-                    "remote": {
-                        "type": "boolean",
-                        "description": "Whether to launch in remote mode. Default is false",
-                        "default": False,
                     },
                 },
             },
@@ -313,7 +307,7 @@ def get_session_tools():
     ]
 
 
-async def handle_session_tool(name, arguments):
+async def handle_tool_call(name, arguments):
     """Handles session management tool calls.
 
     Args:
@@ -327,7 +321,6 @@ async def handle_session_tool(name, arguments):
         result = launch_app(
             dataset_name=arguments.get("dataset_name"),
             port=arguments.get("port"),
-            remote=arguments.get("remote", False),
         )
     elif name == "close_app":
         result = close_app()

@@ -1,7 +1,7 @@
 """
 Tests for session management tools.
 
-| Copyright 2017-2025, Voxel51, Inc.
+| Copyright 2017-2026, Voxel51, Inc.
 | `voxel51.com <https://voxel51.com/>`_
 |
 """
@@ -64,26 +64,26 @@ class TestMCPIntegration:
 
     @pytest.mark.asyncio
     async def test_tool_call_launch_app(self):
-        result = await session.handle_session_tool("launch_app", {})
+        result = await session.handle_tool_call("launch_app", {})
         assert len(result) == 1
         assert result[0].type == "text"
-        await session.handle_session_tool("close_app", {})
+        await session.handle_tool_call("close_app", {})
 
     @pytest.mark.asyncio
     async def test_tool_call_close_app(self):
-        await session.handle_session_tool("launch_app", {})
-        result = await session.handle_session_tool("close_app", {})
+        await session.handle_tool_call("launch_app", {})
+        result = await session.handle_tool_call("close_app", {})
         assert len(result) == 1
         assert result[0].type == "text"
 
     @pytest.mark.asyncio
     async def test_tool_call_get_session_info(self):
-        result = await session.handle_session_tool("get_session_info", {})
+        result = await session.handle_tool_call("get_session_info", {})
         assert len(result) == 1
         assert result[0].type == "text"
 
     @pytest.mark.asyncio
     async def test_tool_call_unknown_tool(self):
-        result = await session.handle_session_tool("unknown_tool", {})
+        result = await session.handle_tool_call("unknown_tool", {})
         assert len(result) == 1
         assert result[0].type == "text"

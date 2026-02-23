@@ -1,7 +1,7 @@
 """
 Dataset management tools for FiftyOne MCP server.
 
-| Copyright 2017-2025, Voxel51, Inc.
+| Copyright 2017-2026, Voxel51, Inc.
 | `voxel51.com <https://voxel51.com/>`_
 |
 """
@@ -41,7 +41,7 @@ def list_datasets():
                     }
                 )
             except Exception as e:
-                logger.warning(f"Could not load dataset '{name}': {e}")
+                logger.warning("Could not load dataset '%s': %s", name, e)
                 dataset_info.append({"name": name, "error": str(e)})
 
         return format_response(
@@ -49,7 +49,7 @@ def list_datasets():
         )
 
     except Exception as e:
-        logger.error(f"Failed to list datasets: {e}")
+        logger.error("Failed to list datasets: %s", e)
         return format_response(None, success=False, error=str(e))
 
 
@@ -78,7 +78,7 @@ def load_dataset(name):
         return format_response(info)
 
     except Exception as e:
-        logger.error(f"Failed to load dataset '{name}': {e}")
+        logger.error("Failed to load dataset '%s': %s", name, e)
         return format_response(None, success=False, error=str(e))
 
 
@@ -119,7 +119,7 @@ def dataset_summary(name):
         return format_response(summary)
 
     except Exception as e:
-        logger.error(f"Failed to get summary for dataset '{name}': {e}")
+        logger.error("Failed to get summary for dataset '%s': %s", name, e)
         return format_response(None, success=False, error=str(e))
 
 
@@ -197,13 +197,13 @@ async def handle_tool_call(name, arguments):
                 result = dataset_summary(dataset_name)
         else:
             result = format_response(
-                None, success=False, error=f"Unknown tool: {name}"
+                None, success=False, error="Unknown tool: %s" % name
             )
 
         return [TextContent(type="text", text=json.dumps(result, indent=2))]
 
     except Exception as e:
-        logger.error(f"Error handling tool call '{name}': {e}")
+        logger.error("Error handling tool call '%s': %s", name, e)
         error_result = format_response(None, success=False, error=str(e))
         return [
             TextContent(type="text", text=json.dumps(error_result, indent=2))

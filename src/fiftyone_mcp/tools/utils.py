@@ -1,7 +1,7 @@
 """
 Utility functions for FiftyOne MCP tools.
 
-| Copyright 2017-2025, Voxel51, Inc.
+| Copyright 2017-2026, Voxel51, Inc.
 | `voxel51.com <https://voxel51.com/>`_
 |
 """
@@ -9,9 +9,33 @@ Utility functions for FiftyOne MCP tools.
 import logging
 
 import fiftyone as fo
+import fiftyone.core.view as fov
 
 
 logger = logging.getLogger(__name__)
+
+
+def _get_view(dataset, view_stages=None):
+    """Builds a view from a dataset with optional serialized stages.
+
+    Args:
+        dataset: a :class:`fiftyone.core.dataset.Dataset`
+        view_stages (None): an optional list of serialized view stage
+            dicts
+
+    Returns:
+        a :class:`fiftyone.core.view.DatasetView`
+    """
+    if not view_stages:
+        return dataset.view()
+
+    try:
+        return fov.DatasetView._build(dataset, view_stages)
+    except Exception as e:
+        logger.warning(
+            "Failed to apply view stages, using full dataset: %s", e
+        )
+        return dataset.view()
 
 
 def format_response(data, success=True, error=None, **kwargs):
@@ -77,7 +101,7 @@ def get_dataset_safe(name):
     try:
         return fo.load_dataset(name)
     except Exception as e:
-        logger.warning(f"Failed to load dataset '{name}': {e}")
+        logger.warning("Failed to load dataset '%s': %s", name, e)
         return None
 
 

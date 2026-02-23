@@ -1,7 +1,7 @@
 """
 Tests for plugin management tools.
 
-| Copyright 2017-2025, Voxel51, Inc.
+| Copyright 2017-2026, Voxel51, Inc.
 | `voxel51.com <https://voxel51.com/>`_
 |
 """
@@ -81,7 +81,7 @@ class TestMCPIntegration:
 
     @pytest.mark.asyncio
     async def test_tool_call_list_plugins(self):
-        result = await plugins.handle_plugin_tool(
+        result = await plugins.handle_tool_call(
             "list_plugins", {"enabled": None}
         )
         assert len(result) == 1
@@ -89,7 +89,7 @@ class TestMCPIntegration:
 
     @pytest.mark.asyncio
     async def test_tool_call_get_plugin_info(self):
-        result = await plugins.handle_plugin_tool(
+        result = await plugins.handle_tool_call(
             "get_plugin_info", {"plugin_name": "@test/plugin"}
         )
         assert len(result) == 1
@@ -97,7 +97,7 @@ class TestMCPIntegration:
 
     @pytest.mark.asyncio
     async def test_tool_call_unknown_tool(self):
-        result = await plugins.handle_plugin_tool(
+        result = await plugins.handle_tool_call(
             "unknown_tool", {}
         )
         assert len(result) == 1

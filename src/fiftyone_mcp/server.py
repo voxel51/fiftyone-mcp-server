@@ -3,7 +3,7 @@ FiftyOne MCP Server.
 
 Main entrypoint for the FiftyOne Model Context Protocol server.
 
-| Copyright 2017-2025, Voxel51, Inc.
+| Copyright 2017-2026, Voxel51, Inc.
 | `voxel51.com <https://voxel51.com/>`_
 |
 """
@@ -17,12 +17,25 @@ from mcp.server import Server
 from mcp.server.stdio import stdio_server
 from mcp.types import TextContent
 
+from .tools.aggregations import get_aggregation_tools
+from .tools.app_config import get_app_config_tools
 from .tools.datasets import get_dataset_tools
 from .tools.operators import get_operator_tools
 from .tools.pipelines import get_pipeline_tools
 from .tools.plugins import get_plugin_tools
+from .tools.samples import get_sample_tools
+from .tools.schema import get_schema_tools
 from .tools.session import get_session_tools
-from .tools import datasets, operators, pipelines, plugins, session
+from .tools import (
+    aggregations,
+    app_config,
+    datasets,
+    operators,
+    plugins,
+    samples,
+    schema,
+    session,
+)
 from .tools.utils import format_response
 
 
@@ -44,7 +57,7 @@ def load_config():
         with open(config_path, "r") as f:
             return json.load(f)
     except Exception as e:
-        logger.warning(f"Could not load config from {config_path}: {e}")
+        logger.warning("Could not load config from %s: %s", config_path, e)
         return {}
 
 
@@ -54,7 +67,7 @@ async def main():
     server_config = config.get("server", {})
     server_name = server_config.get("name", "fiftyone-mcp")
 
-    logger.info(f"Starting {server_name} server...")
+    logger.info("Starting %s server...", server_name)
 
     server = Server(server_name)
 
@@ -64,6 +77,10 @@ async def main():
         + get_pipeline_tools()
         + get_plugin_tools()
         + get_session_tools()
+        + get_aggregation_tools()
+        + get_sample_tools()
+        + get_schema_tools()
+        + get_app_config_tools()
     )
 
     @server.list_tools()
@@ -89,9 +106,7 @@ async def main():
             "enable_plugin",
             "disable_plugin",
         ]:
-            return await plugins.handle_plugin_tool(name, arguments)
-        elif name in ["execute_pipeline", "list_delegated_operations"]:
-            return await pipelines.handle_pipeline_tool(name, arguments)
+            return await plugins.handle_tool_call(name, arguments)
         elif name in [
             "launch_app",
             "close_app",
@@ -99,7 +114,40 @@ async def main():
             "set_view",
             "clear_view",
         ]:
-            return await session.handle_session_tool(name, arguments)
+            return await session.handle_tool_call(name, arguments)
+        elif name in [
+            "count_values",
+            "distinct",
+            "bounds",
+            "mean",
+            "sum",
+            "std",
+            "histogram_values",
+            "get_values",
+        ]:
+            return await aggregations.handle_tool_call(name, arguments)
+        elif name in [
+            "add_samples",
+            "set_values",
+            "tag_samples",
+            "untag_samples",
+            "count_sample_tags",
+        ]:
+            return await samples.handle_tool_call(name, arguments)
+        elif name in [
+            "get_field_schema",
+            "add_sample_field",
+        ]:
+            return await schema.handle_tool_call(name, arguments)
+        elif name in [
+            "get_app_config",
+            "get_color_scheme",
+            "set_color_scheme",
+            "get_sidebar_groups",
+            "set_sidebar_groups",
+            "set_active_fields",
+        ]:
+            return await app_config.handle_tool_call(name, arguments)
         else:
             result = format_response(
                 None, success=False, error=f"Unknown tool: {name}"
@@ -108,7 +156,7 @@ async def main():
                 TextContent(type="text", text=json.dumps(result, indent=2))
             ]
 
-    logger.info(f"{server_name} server initialized successfully")
+    logger.info("%s server initialized successfully", server_name)
 
     async with stdio_server() as (read_stream, write_stream):
         await server.run(
@@ -123,7 +171,7 @@ def run():
     except KeyboardInterrupt:
         logger.info("Server stopped by user")
     except Exception as e:
-        logger.error(f"Server error: {e}", exc_info=True)
+        logger.error("Server error: %s", e, exc_info=True)
         raise
 
 
