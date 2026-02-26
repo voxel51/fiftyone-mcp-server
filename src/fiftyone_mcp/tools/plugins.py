@@ -1,7 +1,7 @@
 """
 Plugin management tools for FiftyOne MCP server.
 
-| Copyright 2017-2025, Voxel51, Inc.
+| Copyright 2017-2026, Voxel51, Inc.
 | `voxel51.com <https://voxel51.com/>`_
 |
 """
@@ -51,14 +51,14 @@ def list_plugins(enabled=None):
                     }
                 )
             except Exception as e:
-                logger.warning(f"Error getting plugin {plugin_name}: {e}")
+                logger.warning("Error getting plugin %s: %s", plugin_name, e)
                 plugin_list.append({"name": str(plugin_name), "error": str(e)})
 
         return format_response(
             {"plugins": plugin_list, "count": len(plugin_list)}, success=True
         )
     except Exception as e:
-        logger.error(f"Error listing plugins: {e}")
+        logger.error("Error listing plugins: %s", e)
         return format_response(None, success=False, error=str(e))
 
 
@@ -89,7 +89,7 @@ def get_plugin_info(plugin_name):
 
         return format_response({"plugin": info}, success=True)
     except Exception as e:
-        logger.error(f"Error getting plugin info for {plugin_name}: {e}")
+        logger.error("Error getting plugin info for %s: %s", plugin_name, e)
         return format_response(None, success=False, error=str(e))
 
 
@@ -121,7 +121,7 @@ def download_plugin(url_or_repo, plugin_names=None, overwrite=False):
             success=True,
         )
     except Exception as e:
-        logger.error(f"Error downloading plugin from {url_or_repo}: {e}")
+        logger.error("Error downloading plugin from %s: %s", url_or_repo, e)
         return format_response(None, success=False, error=str(e))
 
 
@@ -137,11 +137,11 @@ def enable_plugin(plugin_name):
     try:
         fop.enable_plugin(plugin_name)
         return format_response(
-            {"message": f"Plugin {plugin_name} enabled successfully"},
+            {"message": "Plugin %s enabled successfully" % plugin_name},
             success=True,
         )
     except Exception as e:
-        logger.error(f"Error enabling plugin {plugin_name}: {e}")
+        logger.error("Error enabling plugin %s: %s", plugin_name, e)
         return format_response(None, success=False, error=str(e))
 
 
@@ -161,7 +161,7 @@ def disable_plugin(plugin_name):
             success=True,
         )
     except Exception as e:
-        logger.error(f"Error disabling plugin {plugin_name}: {e}")
+        logger.error("Error disabling plugin %s: %s", plugin_name, e)
         return format_response(None, success=False, error=str(e))
 
 
@@ -254,7 +254,7 @@ def get_plugin_tools():
     ]
 
 
-async def handle_plugin_tool(name, arguments):
+async def handle_tool_call(name, arguments):
     """Handles plugin management tool calls.
 
     Args:

@@ -1,7 +1,7 @@
 """
 Operator execution tools for FiftyOne MCP server.
 
-| Copyright 2017-2025, Voxel51, Inc.
+| Copyright 2017-2026, Voxel51, Inc.
 | `voxel51.com <https://voxel51.com/>`_
 |
 """
@@ -52,9 +52,12 @@ def _build_dependency_error_response(error, operator_uri):
         None,
         success=False,
         error_type="missing_dependency",
-        error=f"Operator '{operator_uri}' requires '{package}' which is not installed",
+        error=(
+            "Operator '%s' requires '%s' which is not installed"
+            % (operator_uri, package)
+        ),
         missing_package=package,
-        install_command=f"pip install {package}",
+        install_command="pip install %s" % package,
     )
 
 
@@ -112,16 +115,6 @@ def get_context():
     return cm.get_context()
 
 
-def clear_context():
-    """Clears the execution context.
-
-    Returns:
-        a dict with success message
-    """
-    cm = get_context_manager()
-    return cm.clear_context()
-
-
 def list_operators(builtin_only=None, operator_type=None):
     """Lists all available FiftyOne operators.
 
@@ -165,7 +158,7 @@ def list_operators(builtin_only=None, operator_type=None):
         )
 
     except Exception as e:
-        logger.error(f"Failed to list operators: {e}")
+        logger.error("Failed to list operators: %s", e)
         return format_response(None, success=False, error=str(e))
 
 
@@ -185,7 +178,7 @@ def get_operator_schema(operator_uri):
             return format_response(
                 None,
                 success=False,
-                error=f"Operator '{operator_uri}' not found",
+                error="Operator '%s' not found" % operator_uri,
             )
 
         cm = get_context_manager()
@@ -210,7 +203,9 @@ def get_operator_schema(operator_uri):
 
     except Exception as e:
         logger.error(
-            f"Failed to get operator schema for '{operator_uri}': {e}"
+            "Failed to get operator schema for '%s': %s",
+            operator_uri,
+            e,
         )
         return format_response(None, success=False, error=str(e))
 
@@ -296,7 +291,7 @@ async def execute_operator_async(
             return format_response(
                 None,
                 success=False,
-                error=f"Operator '{operator_uri}' not found",
+                error="Operator '%s' not found" % operator_uri,
             )
 
         cm = get_context_manager()
@@ -337,7 +332,7 @@ async def execute_operator_async(
         return _build_dependency_error_response(e, operator_uri)
 
     except Exception as e:
-        logger.error(f"Failed to execute operator '{operator_uri}': {e}")
+        logger.error("Failed to execute operator '%s': %s", operator_uri, e)
         return format_response(
             None,
             success=False,
@@ -514,7 +509,7 @@ async def handle_tool_call(name, arguments):
         )
     else:
         result = format_response(
-            None, success=False, error=f"Unknown tool: {name}"
+            None, success=False, error="Unknown tool: %s" % name
         )
 
     return [TextContent(type="text", text=json.dumps(result, indent=2))]
@@ -592,7 +587,7 @@ class ContextManager(object):
             )
 
         except Exception as e:
-            logger.error(f"Failed to set context: {e}")
+            logger.error("Failed to set context: %s", e)
             return format_response(None, success=False, error=str(e))
 
     def get_context(self):
@@ -640,7 +635,7 @@ class ContextManager(object):
             )
 
         except Exception as e:
-            logger.error(f"Failed to get context: {e}")
+            logger.error("Failed to get context: %s", e)
             return format_response(None, success=False, error=str(e))
 
     def get_execution_context(self):

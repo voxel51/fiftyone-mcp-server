@@ -1,7 +1,7 @@
 """
 Tests for operator tools.
 
-| Copyright 2017-2025, Voxel51, Inc.
+| Copyright 2017-2026, Voxel51, Inc.
 | `voxel51.com <https://voxel51.com/>`_
 |
 """
@@ -11,7 +11,6 @@ import fiftyone as fo
 from fiftyone_mcp.tools.operators import (
     set_context,
     get_context,
-    clear_context,
     list_operators,
     get_operator_schema,
     execute_operator,
@@ -100,15 +99,6 @@ class TestContextManagement:
         assert result["data"]["context_set"] is True
         assert result["data"]["dataset_name"] == test_dataset.name
 
-    def test_clear_context(self, test_dataset, clear_test_context):
-        """Test clearing context."""
-        set_context(test_dataset.name)
-        result = clear_context()
-
-        assert result["success"] is True
-
-        ctx_result = get_context()
-        assert ctx_result["data"]["context_set"] is False
 
 
 class TestOperatorDiscovery:
