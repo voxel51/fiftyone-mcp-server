@@ -6,7 +6,10 @@ Tests for operator tools.
 |
 """
 
+import json
+
 import pytest
+
 import fiftyone as fo
 from fiftyone_mcp.tools.operators import (
     set_context,
@@ -15,6 +18,7 @@ from fiftyone_mcp.tools.operators import (
     get_operator_schema,
     execute_operator,
     get_context_manager,
+    handle_tool_call,
 )
 
 
@@ -191,6 +195,33 @@ class TestOperatorSchema:
         schema = result["data"]["input_schema"]
         assert "properties" in schema or "view" in schema
 
+    def test_get_schema_with_params(
+        self, test_dataset, clear_test_context
+    ):
+        """Test getting schema with params for dynamic resolution."""
+        set_context(test_dataset.name)
+        result = get_operator_schema(
+            "@voxel51/operators/edit_field_info",
+            params={"field_name": "tags"},
+        )
+
+        assert result["success"] is True
+        assert "input_schema" in result["data"]
+        assert "dynamic" in result["data"]
+
+    def test_get_schema_includes_dynamic_flag(
+        self, test_dataset, clear_test_context
+    ):
+        """Test that response includes the dynamic flag."""
+        set_context(test_dataset.name)
+        result = get_operator_schema(
+            "@voxel51/operators/edit_field_info"
+        )
+
+        assert result["success"] is True
+        assert "dynamic" in result["data"]
+        assert isinstance(result["data"]["dynamic"], bool)
+
 
 class TestOperatorExecution:
     """Tests for operator execution operations."""
@@ -248,30 +279,21 @@ class TestMCPIntegration:
         self, test_dataset, clear_test_context
     ):
         """Test MCP tool call for set_context."""
-        from fiftyone_mcp.tools.operators import handle_tool_call
-
         result = await handle_tool_call(
             "set_context", {"dataset_name": test_dataset.name}
         )
 
         assert len(result) == 1
         assert hasattr(result[0], "text")
-
-        import json
-
         data = json.loads(result[0].text)
         assert data["success"] is True
 
     @pytest.mark.asyncio
     async def test_tool_call_list_operators(self):
         """Test MCP tool call for list_operators."""
-        from fiftyone_mcp.tools.operators import handle_tool_call
-
         result = await handle_tool_call("list_operators", {})
 
         assert len(result) == 1
-        import json
-
         data = json.loads(result[0].text)
         assert data["success"] is True
         assert data["data"]["count"] > 0
@@ -279,13 +301,9 @@ class TestMCPIntegration:
     @pytest.mark.asyncio
     async def test_tool_call_unknown_tool(self):
         """Test MCP tool call with unknown tool name."""
-        from fiftyone_mcp.tools.operators import handle_tool_call
-
         result = await handle_tool_call("unknown_tool", {})
 
         assert len(result) == 1
-        import json
-
         data = json.loads(result[0].text)
         assert data["success"] is False
         assert "Unknown tool" in data["error"]

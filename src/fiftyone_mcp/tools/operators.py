@@ -162,12 +162,19 @@ def list_operators(builtin_only=None, operator_type=None):
         return format_response(None, success=False, error=str(e))
 
 
-def get_operator_schema(operator_uri):
+def get_operator_schema(operator_uri, params=None):
     """Gets the input schema for a specific operator.
+
+    When ``params`` is provided, the values are injected into the
+    execution context before calling ``resolve_input()``. This allows
+    dynamic operators to return their full schema — including fields
+    that only appear after earlier fields are filled in.
 
     Args:
         operator_uri: the URI of the operator (e.g.,
             ``"@voxel51/operators/tag_samples"``)
+        params (None): an optional dict of parameter values to seed
+            the context with before resolving the schema
 
     Returns:
         a dict containing the operator's input schema
@@ -190,6 +197,10 @@ def get_operator_schema(operator_uri):
                 error="Context not set. Use set_context first to get dynamic schema.",
             )
 
+        if params:
+            ctx.request_params = dict(ctx.request_params)
+            ctx.request_params["params"] = params
+
         input_property = operator.resolve_input(ctx)
         schema = input_property.to_json() if input_property else {}
 
@@ -197,6 +208,7 @@ def get_operator_schema(operator_uri):
             {
                 "operator_uri": operator_uri,
                 "operator_label": operator.config.label,
+                "dynamic": operator.config.dynamic,
                 "input_schema": schema,
             }
         )
@@ -431,14 +443,18 @@ def get_operator_tools():
         ),
         Tool(
             name="get_operator_schema",
-            description="Get the dynamic input schema for a specific operator. Schemas are context-aware and change based on the current dataset/view/selection. Use this AFTER list_operators to understand what parameters an operator accepts. Requires context to be set via set_context first.",
+            description='Get the dynamic input schema for a specific operator. Schemas are context-aware and change based on the current dataset/view/selection. Use this AFTER list_operators to understand what parameters an operator accepts. For dynamic operators, pass \'params\' with partial values to resolve fields that depend on earlier selections (e.g., pass {"model": "yolo-nas-s"} to see source and label_field options). Requires context to be set via set_context first.',
             inputSchema={
                 "type": "object",
                 "properties": {
                     "operator_uri": {
                         "type": "string",
                         "description": "The URI of the operator from list_operators (e.g., '@voxel51/brain/compute_similarity', '@voxel51/utils/create_dataset')",
-                    }
+                    },
+                    "params": {
+                        "type": "object",
+                        "description": "Optional parameter values to seed the context with before resolving the schema. For dynamic operators, this reveals fields that depend on earlier selections.",
+                    },
                 },
                 "required": ["operator_uri"],
             },
@@ -499,7 +515,10 @@ async def handle_tool_call(name, arguments):
             operator_type=arguments.get("operator_type"),
         )
     elif name == "get_operator_schema":
-        result = get_operator_schema(arguments["operator_uri"])
+        result = get_operator_schema(
+            arguments["operator_uri"],
+            params=arguments.get("params"),
+        )
     elif name == "execute_operator":
         result = await execute_operator_async(
             operator_uri=arguments["operator_uri"],

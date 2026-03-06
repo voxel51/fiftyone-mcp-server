@@ -9,15 +9,18 @@ Tests for pipeline execution and delegated operation tools.
 import json
 
 import pytest
+
 import fiftyone as fo
 from fiftyone_mcp.tools.operators import (
     set_context,
     get_context_manager,
     list_operators,
     execute_operator,
+    handle_tool_call,
 )
 from fiftyone_mcp.tools.pipelines import (
     execute_pipeline_async,
+    handle_pipeline_tool,
     list_delegated_operations,
 )
 
@@ -132,7 +135,6 @@ class TestExecutePipeline:
             ]
         )
 
-        # Should fail validation before executing anything
         assert result["success"] is False
         assert "not found" in result["error"]
 
@@ -143,7 +145,6 @@ class TestExecutePipeline:
         """Test that pipeline execution returns proper structure."""
         set_context(test_dataset.name)
 
-        # Use a simple operator that should succeed
         result = await execute_pipeline_async(
             stages=[
                 {
@@ -154,7 +155,6 @@ class TestExecutePipeline:
             ]
         )
 
-        # Whether it succeeds or fails, it should have proper structure
         assert "success" in result
         if result["success"]:
             data = result["data"]
@@ -280,8 +280,6 @@ class TestMCPIntegration:
         self, test_dataset, clear_test_context
     ):
         """Test MCP tool call for execute_pipeline."""
-        from fiftyone_mcp.tools.pipelines import handle_pipeline_tool
-
         set_context(test_dataset.name)
 
         result = await handle_pipeline_tool(
@@ -305,8 +303,6 @@ class TestMCPIntegration:
     @pytest.mark.asyncio
     async def test_tool_call_list_delegated(self):
         """Test MCP tool call for list_delegated_operations."""
-        from fiftyone_mcp.tools.pipelines import handle_pipeline_tool
-
         result = await handle_pipeline_tool(
             "list_delegated_operations", {}
         )
@@ -319,8 +315,6 @@ class TestMCPIntegration:
     @pytest.mark.asyncio
     async def test_tool_call_unknown_tool(self):
         """Test MCP tool call with unknown tool name."""
-        from fiftyone_mcp.tools.pipelines import handle_pipeline_tool
-
         result = await handle_pipeline_tool("unknown_tool", {})
 
         assert len(result) == 1
@@ -333,8 +327,6 @@ class TestMCPIntegration:
         self, test_dataset, clear_test_context
     ):
         """Test MCP tool call for execute_operator with delegate param."""
-        from fiftyone_mcp.tools.operators import handle_tool_call
-
         set_context(test_dataset.name)
 
         result = await handle_tool_call(

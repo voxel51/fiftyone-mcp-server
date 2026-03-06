@@ -6,12 +6,16 @@ Tests for dataset tools.
 |
 """
 
+import json
+
 import pytest
+
 import fiftyone as fo
 from fiftyone_mcp.tools.datasets import (
     list_datasets,
     load_dataset,
     dataset_summary,
+    handle_tool_call,
 )
 from fiftyone_mcp.tools.utils import format_response
 
@@ -137,28 +141,20 @@ class TestMCPIntegration:
     @pytest.mark.asyncio
     async def test_tool_call_list_datasets(self):
         """Test MCP tool call for list_datasets."""
-        from fiftyone_mcp.tools.datasets import handle_tool_call
-
         result = await handle_tool_call("list_datasets", {})
 
         assert len(result) == 1
-        import json
-
         data = json.loads(result[0].text)
         assert data["success"] is True
 
     @pytest.mark.asyncio
     async def test_tool_call_load_dataset(self, test_dataset):
         """Test MCP tool call for load_dataset."""
-        from fiftyone_mcp.tools.datasets import handle_tool_call
-
         result = await handle_tool_call(
             "load_dataset", {"name": test_dataset.name}
         )
 
         assert len(result) == 1
-        import json
-
         data = json.loads(result[0].text)
         assert data["success"] is True
         assert data["data"]["name"] == test_dataset.name
@@ -166,13 +162,9 @@ class TestMCPIntegration:
     @pytest.mark.asyncio
     async def test_tool_call_missing_name(self):
         """Test MCP tool call without required name parameter."""
-        from fiftyone_mcp.tools.datasets import handle_tool_call
-
         result = await handle_tool_call("load_dataset", {})
 
         assert len(result) == 1
-        import json
-
         data = json.loads(result[0].text)
         assert data["success"] is False
         assert "required" in data["error"].lower()
@@ -180,13 +172,9 @@ class TestMCPIntegration:
     @pytest.mark.asyncio
     async def test_tool_call_unknown_tool(self):
         """Test MCP tool call with unknown tool name."""
-        from fiftyone_mcp.tools.datasets import handle_tool_call
-
         result = await handle_tool_call("unknown_tool", {})
 
         assert len(result) == 1
-        import json
-
         data = json.loads(result[0].text)
         assert data["success"] is False
         assert "Unknown tool" in data["error"]

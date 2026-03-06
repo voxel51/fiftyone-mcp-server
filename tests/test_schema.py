@@ -6,7 +6,10 @@ Tests for field schema tools.
 |
 """
 
+import json
+
 import pytest
+
 import fiftyone as fo
 from fiftyone_mcp.tools.schema import (
     get_field_schema,
@@ -191,8 +194,6 @@ class TestHandleToolCall:
             {"dataset_name": test_dataset.name},
         )
 
-        import json
-
         assert len(result) == 1
         data = json.loads(result[0].text)
         assert data["success"] is True
@@ -210,8 +211,6 @@ class TestHandleToolCall:
             },
         )
 
-        import json
-
         assert len(result) == 1
         data = json.loads(result[0].text)
         assert data["success"] is True
@@ -224,8 +223,6 @@ class TestHandleToolCall:
             "get_field_schema",
             {},
         )
-
-        import json
 
         assert len(result) == 1
         data = json.loads(result[0].text)
@@ -243,8 +240,6 @@ class TestHandleToolCall:
             },
         )
 
-        import json
-
         assert len(result) == 1
         data = json.loads(result[0].text)
         assert data["success"] is False
@@ -257,8 +252,6 @@ class TestHandleToolCall:
             "unknown_schema_tool",
             {"dataset_name": "ds"},
         )
-
-        import json
 
         assert len(result) == 1
         data = json.loads(result[0].text)
@@ -276,10 +269,7 @@ class TestHandleToolCall:
             },
         )
 
-        import json
-
         assert len(result) == 1
         data = json.loads(result[0].text)
         assert data["success"] is True
-        # Private fields included → more fields than without
         assert data["data"]["num_fields"] >= 1
