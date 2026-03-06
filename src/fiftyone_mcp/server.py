@@ -31,6 +31,7 @@ from .tools import (
     app_config,
     datasets,
     operators,
+    pipelines,
     plugins,
     samples,
     schema,
@@ -148,6 +149,8 @@ async def main():
             "set_active_fields",
         ]:
             return await app_config.handle_tool_call(name, arguments)
+        elif name in ["execute_pipeline", "list_delegated_operations"]:
+            return await pipelines.handle_pipeline_tool(name, arguments)
         else:
             result = format_response(
                 None, success=False, error=f"Unknown tool: {name}"
