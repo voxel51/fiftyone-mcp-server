@@ -9,9 +9,11 @@ Session management tools for FiftyOne MCP server.
 import json
 import logging
 
+from mcp.types import TextContent, Tool
+
 import fiftyone as fo
+import fiftyone.core.session.session as _fo_session_module
 from fiftyone import ViewField as F
-from mcp.types import Tool, TextContent
 
 from .utils import format_response
 
@@ -22,25 +24,29 @@ _active_session = None
 
 
 def _ensure_session():
-    """Returns the active session, attaching to an existing one if needed.
+    """Returns the active session, reusing an existing one when possible.
 
-    If no session is set, attempts to connect to the FiftyOne App already
-    running on the configured port without launching a new server or opening
-    a browser window.
+    Checks ``_active_session``, then FiftyOne's global session
+    (``fiftyone.core.session.session._session``), and finally falls
+    back to ``fo.launch_app()`` for standalone/subprocess usage.
 
     Returns:
-        a :class:`fiftyone.core.session.Session`, or None if unavailable
+        a :class:`fiftyone.core.session.Session`, or ``None``
     """
     global _active_session
 
     if _active_session is not None:
         return _active_session
 
+    if _fo_session_module._session is not None:
+        _active_session = _fo_session_module._session
+        return _active_session
+
     try:
         port = fo.config.default_app_port or 5151
         _active_session = fo.launch_app(port=port)
     except Exception as e:
-        logger.warning("Could not attach to existing FiftyOne session: %s", e)
+        logger.warning("Could not start FiftyOne session: %s", e)
 
     return _active_session
 

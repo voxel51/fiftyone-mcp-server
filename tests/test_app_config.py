@@ -6,7 +6,10 @@ Tests for app config management tools.
 |
 """
 
+import json
+
 import pytest
+
 import fiftyone as fo
 from fiftyone_mcp.tools.app_config import (
     get_app_config,
@@ -231,8 +234,6 @@ class TestHandleToolCall:
             {"dataset_name": test_dataset.name},
         )
 
-        import json
-
         assert len(result) == 1
         data = json.loads(result[0].text)
         assert data["success"] is True
@@ -250,8 +251,6 @@ class TestHandleToolCall:
             },
         )
 
-        import json
-
         assert len(result) == 1
         data = json.loads(result[0].text)
         assert data["success"] is True
@@ -267,8 +266,6 @@ class TestHandleToolCall:
                 "groups": [{"name": "core", "paths": ["filepath"]}],
             },
         )
-
-        import json
 
         assert len(result) == 1
         data = json.loads(result[0].text)
@@ -286,8 +283,6 @@ class TestHandleToolCall:
             },
         )
 
-        import json
-
         assert len(result) == 1
         data = json.loads(result[0].text)
         assert data["success"] is True
@@ -296,8 +291,6 @@ class TestHandleToolCall:
     async def test_handle_missing_dataset_name(self):
         """Test MCP tool call without required dataset_name."""
         result = await handle_tool_call("get_app_config", {})
-
-        import json
 
         assert len(result) == 1
         data = json.loads(result[0].text)
@@ -312,8 +305,6 @@ class TestHandleToolCall:
             {"dataset_name": test_dataset.name},
         )
 
-        import json
-
         assert len(result) == 1
         data = json.loads(result[0].text)
         assert data["success"] is False
@@ -326,8 +317,6 @@ class TestHandleToolCall:
             "unknown_app_config_tool",
             {"dataset_name": "ds"},
         )
-
-        import json
 
         assert len(result) == 1
         data = json.loads(result[0].text)

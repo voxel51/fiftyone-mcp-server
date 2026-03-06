@@ -6,7 +6,10 @@ Tests for sample manipulation tools.
 |
 """
 
+import json
+
 import pytest
+
 import fiftyone as fo
 from fiftyone_mcp.tools.samples import (
     add_samples,
@@ -237,7 +240,6 @@ class TestCountSampleTags:
         """Test that tag counts match known fixture values."""
         result = count_sample_tags(test_dataset.name)
 
-        # Fixture creates samples with tags tag_0 and tag_1 alternating
         tags = result["data"]["tags"]
         assert tags.get("tag_0", 0) == 3
         assert tags.get("tag_1", 0) == 3
@@ -264,8 +266,6 @@ class TestHandleToolCall:
             },
         )
 
-        import json
-
         assert len(result) == 1
         data = json.loads(result[0].text)
         assert data["success"] is True
@@ -282,8 +282,6 @@ class TestHandleToolCall:
             },
         )
 
-        import json
-
         assert len(result) == 1
         data = json.loads(result[0].text)
         assert data["success"] is True
@@ -295,8 +293,6 @@ class TestHandleToolCall:
             "count_sample_tags",
             {"dataset_name": test_dataset.name},
         )
-
-        import json
 
         assert len(result) == 1
         data = json.loads(result[0].text)
@@ -311,8 +307,6 @@ class TestHandleToolCall:
             {"dataset_name": test_dataset.name},
         )
 
-        import json
-
         assert len(result) == 1
         data = json.loads(result[0].text)
         assert data["success"] is False
@@ -325,8 +319,6 @@ class TestHandleToolCall:
             "unknown_sample_tool",
             {"dataset_name": "ds"},
         )
-
-        import json
 
         assert len(result) == 1
         data = json.loads(result[0].text)
@@ -347,8 +339,6 @@ class TestHandleToolCall:
                 "values": values,
             },
         )
-
-        import json
 
         assert len(result) == 1
         data = json.loads(result[0].text)

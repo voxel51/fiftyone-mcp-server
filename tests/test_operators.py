@@ -6,7 +6,10 @@ Tests for operator tools.
 |
 """
 
+import json
+
 import pytest
+
 import fiftyone as fo
 from fiftyone_mcp.tools.operators import (
     set_context,
@@ -15,6 +18,7 @@ from fiftyone_mcp.tools.operators import (
     get_operator_schema,
     execute_operator,
     get_context_manager,
+    handle_tool_call,
 )
 
 
@@ -248,30 +252,21 @@ class TestMCPIntegration:
         self, test_dataset, clear_test_context
     ):
         """Test MCP tool call for set_context."""
-        from fiftyone_mcp.tools.operators import handle_tool_call
-
         result = await handle_tool_call(
             "set_context", {"dataset_name": test_dataset.name}
         )
 
         assert len(result) == 1
         assert hasattr(result[0], "text")
-
-        import json
-
         data = json.loads(result[0].text)
         assert data["success"] is True
 
     @pytest.mark.asyncio
     async def test_tool_call_list_operators(self):
         """Test MCP tool call for list_operators."""
-        from fiftyone_mcp.tools.operators import handle_tool_call
-
         result = await handle_tool_call("list_operators", {})
 
         assert len(result) == 1
-        import json
-
         data = json.loads(result[0].text)
         assert data["success"] is True
         assert data["data"]["count"] > 0
@@ -279,13 +274,9 @@ class TestMCPIntegration:
     @pytest.mark.asyncio
     async def test_tool_call_unknown_tool(self):
         """Test MCP tool call with unknown tool name."""
-        from fiftyone_mcp.tools.operators import handle_tool_call
-
         result = await handle_tool_call("unknown_tool", {})
 
         assert len(result) == 1
-        import json
-
         data = json.loads(result[0].text)
         assert data["success"] is False
         assert "Unknown tool" in data["error"]

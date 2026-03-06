@@ -6,7 +6,10 @@ Tests for aggregation tools.
 |
 """
 
+import json
+
 import pytest
+
 import fiftyone as fo
 from fiftyone_mcp.tools.aggregations import (
     count_values,
@@ -265,7 +268,7 @@ class TestHandleToolCall:
             },
         )
 
-        import json
+
 
         assert len(result) == 1
         data = json.loads(result[0].text)
@@ -280,7 +283,7 @@ class TestHandleToolCall:
             {"field": "category"},
         )
 
-        import json
+
 
         assert len(result) == 1
         data = json.loads(result[0].text)
@@ -295,7 +298,7 @@ class TestHandleToolCall:
             {"dataset_name": test_dataset.name},
         )
 
-        import json
+
 
         assert len(result) == 1
         data = json.loads(result[0].text)
@@ -310,7 +313,7 @@ class TestHandleToolCall:
             {"dataset_name": "ds", "field": "f"},
         )
 
-        import json
+
 
         assert len(result) == 1
         data = json.loads(result[0].text)
@@ -329,7 +332,7 @@ class TestHandleToolCall:
             },
         )
 
-        import json
+
 
         assert len(result) == 1
         data = json.loads(result[0].text)

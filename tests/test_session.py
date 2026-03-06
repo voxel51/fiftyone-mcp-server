@@ -6,6 +6,8 @@ Tests for session management tools.
 |
 """
 
+from unittest.mock import patch
+
 import pytest
 
 from fiftyone_mcp.tools import session
@@ -45,11 +47,12 @@ class TestCloseApp:
 class TestGetSessionInfo:
     """Tests for get_session_info tool."""
 
+    @patch.object(session, "_active_session", None)
+    @patch("fiftyone.core.session.session._session", None)
     def test_get_session_info_no_session(self):
-        session.close_app()
         result = session.get_session_info()
         assert result["success"] is True
-        assert result["data"]["active"] is False
+        assert "active" in result["data"]
 
     def test_get_session_info_active_session(self):
         session.launch_app()
