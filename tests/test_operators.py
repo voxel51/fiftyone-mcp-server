@@ -195,6 +195,33 @@ class TestOperatorSchema:
         schema = result["data"]["input_schema"]
         assert "properties" in schema or "view" in schema
 
+    def test_get_schema_with_params(
+        self, test_dataset, clear_test_context
+    ):
+        """Test getting schema with params for dynamic resolution."""
+        set_context(test_dataset.name)
+        result = get_operator_schema(
+            "@voxel51/operators/edit_field_info",
+            params={"field_name": "tags"},
+        )
+
+        assert result["success"] is True
+        assert "input_schema" in result["data"]
+        assert "dynamic" in result["data"]
+
+    def test_get_schema_includes_dynamic_flag(
+        self, test_dataset, clear_test_context
+    ):
+        """Test that response includes the dynamic flag."""
+        set_context(test_dataset.name)
+        result = get_operator_schema(
+            "@voxel51/operators/edit_field_info"
+        )
+
+        assert result["success"] is True
+        assert "dynamic" in result["data"]
+        assert isinstance(result["data"]["dynamic"], bool)
+
 
 class TestOperatorExecution:
     """Tests for operator execution operations."""
