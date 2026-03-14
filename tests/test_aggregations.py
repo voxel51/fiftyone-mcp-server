@@ -20,8 +20,9 @@ from fiftyone_mcp.tools.aggregations import (
     compute_std,
     histogram_values,
     get_values,
-    handle_tool_call,
+    register_tools,
 )
+from fiftyone_mcp.registry import ToolRegistry
 
 
 @pytest.fixture
@@ -63,7 +64,9 @@ class TestCountValues:
 
     def test_count_values_success(self, test_dataset):
         """Test counting values for a categorical field."""
-        result = count_values(test_dataset.name, "category")
+        result = count_values(
+            None, test_dataset.name, "category"
+        )
 
         assert result["success"] is True
         assert result["data"]["field"] == "category"
@@ -75,14 +78,18 @@ class TestCountValues:
 
     def test_count_values_missing_dataset(self):
         """Test with a non-existent dataset."""
-        result = count_values("nonexistent_dataset_xyz", "category")
+        result = count_values(
+            None, "nonexistent_dataset_xyz", "category"
+        )
 
         assert result["success"] is False
         assert "error" in result
 
     def test_count_values_missing_field(self, test_dataset):
         """Test with a field that does not exist."""
-        result = count_values(test_dataset.name, "nonexistent_field")
+        result = count_values(
+            None, test_dataset.name, "nonexistent_field"
+        )
 
         assert result["success"] is False
         assert "error" in result
@@ -92,17 +99,25 @@ class TestDistinct:
     """Tests for distinct tool."""
 
     def test_distinct_success(self, test_dataset):
-        """Test getting distinct values for a categorical field."""
-        result = distinct(test_dataset.name, "category")
+        """Test getting distinct values for a field."""
+        result = distinct(
+            None, test_dataset.name, "category"
+        )
 
         assert result["success"] is True
         assert result["data"]["field"] == "category"
-        assert set(result["data"]["values"]) == {"cat", "dog", "bird"}
+        assert set(result["data"]["values"]) == {
+            "cat",
+            "dog",
+            "bird",
+        }
         assert result["data"]["count"] == 3
 
     def test_distinct_missing_dataset(self):
         """Test with a non-existent dataset."""
-        result = distinct("nonexistent_dataset_xyz", "category")
+        result = distinct(
+            None, "nonexistent_dataset_xyz", "category"
+        )
 
         assert result["success"] is False
         assert "error" in result
@@ -113,7 +128,9 @@ class TestComputeBounds:
 
     def test_bounds_success(self, test_dataset):
         """Test getting bounds for a numeric field."""
-        result = compute_bounds(test_dataset.name, "score")
+        result = compute_bounds(
+            None, test_dataset.name, "score"
+        )
 
         assert result["success"] is True
         assert result["data"]["field"] == "score"
@@ -122,7 +139,9 @@ class TestComputeBounds:
 
     def test_bounds_missing_dataset(self):
         """Test with a non-existent dataset."""
-        result = compute_bounds("nonexistent_dataset_xyz", "score")
+        result = compute_bounds(
+            None, "nonexistent_dataset_xyz", "score"
+        )
 
         assert result["success"] is False
         assert "error" in result
@@ -133,16 +152,24 @@ class TestComputeMean:
 
     def test_mean_success(self, test_dataset):
         """Test computing mean for a numeric field."""
-        result = compute_mean(test_dataset.name, "score")
+        result = compute_mean(
+            None, test_dataset.name, "score"
+        )
 
         assert result["success"] is True
         assert result["data"]["field"] == "score"
-        expected_mean = sum([0.1, 0.5, 0.3, 0.9, 0.7, 0.4]) / 6
-        assert abs(result["data"]["mean"] - expected_mean) < 1e-6
+        expected_mean = (
+            sum([0.1, 0.5, 0.3, 0.9, 0.7, 0.4]) / 6
+        )
+        assert (
+            abs(result["data"]["mean"] - expected_mean) < 1e-6
+        )
 
     def test_mean_missing_dataset(self):
         """Test with a non-existent dataset."""
-        result = compute_mean("nonexistent_dataset_xyz", "score")
+        result = compute_mean(
+            None, "nonexistent_dataset_xyz", "score"
+        )
 
         assert result["success"] is False
         assert "error" in result
@@ -153,16 +180,22 @@ class TestComputeSum:
 
     def test_sum_success(self, test_dataset):
         """Test computing sum for a numeric field."""
-        result = compute_sum(test_dataset.name, "score")
+        result = compute_sum(
+            None, test_dataset.name, "score"
+        )
 
         assert result["success"] is True
         assert result["data"]["field"] == "score"
         expected_sum = sum([0.1, 0.5, 0.3, 0.9, 0.7, 0.4])
-        assert abs(result["data"]["sum"] - expected_sum) < 1e-6
+        assert (
+            abs(result["data"]["sum"] - expected_sum) < 1e-6
+        )
 
     def test_sum_missing_dataset(self):
         """Test with a non-existent dataset."""
-        result = compute_sum("nonexistent_dataset_xyz", "score")
+        result = compute_sum(
+            None, "nonexistent_dataset_xyz", "score"
+        )
 
         assert result["success"] is False
         assert "error" in result
@@ -172,8 +205,10 @@ class TestComputeStd:
     """Tests for compute_std tool."""
 
     def test_std_success(self, test_dataset):
-        """Test computing standard deviation for a numeric field."""
-        result = compute_std(test_dataset.name, "score")
+        """Test computing std for a numeric field."""
+        result = compute_std(
+            None, test_dataset.name, "score"
+        )
 
         assert result["success"] is True
         assert result["data"]["field"] == "score"
@@ -181,7 +216,9 @@ class TestComputeStd:
 
     def test_std_missing_dataset(self):
         """Test with a non-existent dataset."""
-        result = compute_std("nonexistent_dataset_xyz", "score")
+        result = compute_std(
+            None, "nonexistent_dataset_xyz", "score"
+        )
 
         assert result["success"] is False
         assert "error" in result
@@ -193,7 +230,7 @@ class TestHistogramValues:
     def test_histogram_success(self, test_dataset):
         """Test computing a histogram for a numeric field."""
         result = histogram_values(
-            test_dataset.name, "score", bins=5
+            None, test_dataset.name, "score", bins=5
         )
 
         assert result["success"] is True
@@ -201,13 +238,14 @@ class TestHistogramValues:
         assert "counts" in result["data"]
         assert "edges" in result["data"]
         assert "other" in result["data"]
-        assert len(result["data"]["edges"]) == len(
-            result["data"]["counts"]
-        ) + 1
+        assert len(result["data"]["edges"]) == (
+            len(result["data"]["counts"]) + 1
+        )
 
     def test_histogram_with_range(self, test_dataset):
         """Test histogram with explicit value range."""
         result = histogram_values(
+            None,
             test_dataset.name,
             "score",
             bins=5,
@@ -219,7 +257,9 @@ class TestHistogramValues:
 
     def test_histogram_missing_dataset(self):
         """Test with a non-existent dataset."""
-        result = histogram_values("nonexistent_dataset_xyz", "score")
+        result = histogram_values(
+            None, "nonexistent_dataset_xyz", "score"
+        )
 
         assert result["success"] is False
         assert "error" in result
@@ -230,7 +270,7 @@ class TestGetValues:
 
     def test_get_values_success(self, test_dataset):
         """Test getting all values for a field."""
-        result = get_values(test_dataset.name, "score")
+        result = get_values(None, test_dataset.name, "score")
 
         assert result["success"] is True
         assert result["data"]["field"] == "score"
@@ -239,8 +279,10 @@ class TestGetValues:
         assert len(result["data"]["values"]) == 6
 
     def test_get_values_with_limit(self, test_dataset):
-        """Test that values are truncated when limit is exceeded."""
-        result = get_values(test_dataset.name, "score", limit=3)
+        """Test that values are truncated when limit exceeded."""
+        result = get_values(
+            None, test_dataset.name, "score", limit=3
+        )
 
         assert result["success"] is True
         assert result["data"]["count"] == 3
@@ -248,19 +290,30 @@ class TestGetValues:
 
     def test_get_values_missing_dataset(self):
         """Test with a non-existent dataset."""
-        result = get_values("nonexistent_dataset_xyz", "score")
+        result = get_values(
+            None, "nonexistent_dataset_xyz", "score"
+        )
 
         assert result["success"] is False
         assert "error" in result
 
 
-class TestHandleToolCall:
-    """Integration tests for aggregation tool call handler."""
+class TestRegistry:
+    """Tests for tool registration via the registry."""
+
+    @pytest.fixture
+    def registry(self):
+        """Creates a registry with aggregation tools."""
+        reg = ToolRegistry()
+        register_tools(reg)
+        return reg
 
     @pytest.mark.asyncio
-    async def test_handle_count_values(self, test_dataset):
-        """Test MCP tool call for count_values."""
-        result = await handle_tool_call(
+    async def test_registry_count_values(
+        self, registry, test_dataset
+    ):
+        """Test calling count_values via registry."""
+        result = await registry.call_tool(
             "count_values",
             {
                 "dataset_name": test_dataset.name,
@@ -268,52 +321,18 @@ class TestHandleToolCall:
             },
         )
 
-
-
         assert len(result) == 1
         data = json.loads(result[0].text)
         assert data["success"] is True
         assert "counts" in data["data"]
 
     @pytest.mark.asyncio
-    async def test_handle_missing_dataset_name(self):
-        """Test MCP tool call without required dataset_name."""
-        result = await handle_tool_call(
-            "count_values",
-            {"field": "category"},
-        )
-
-
-
-        assert len(result) == 1
-        data = json.loads(result[0].text)
-        assert data["success"] is False
-        assert "dataset_name" in data["error"]
-
-    @pytest.mark.asyncio
-    async def test_handle_missing_field(self, test_dataset):
-        """Test MCP tool call without required field."""
-        result = await handle_tool_call(
-            "count_values",
-            {"dataset_name": test_dataset.name},
-        )
-
-
-
-        assert len(result) == 1
-        data = json.loads(result[0].text)
-        assert data["success"] is False
-        assert "field" in data["error"]
-
-    @pytest.mark.asyncio
-    async def test_handle_unknown_tool(self):
-        """Test MCP tool call with unknown tool name."""
-        result = await handle_tool_call(
+    async def test_registry_unknown_tool(self, registry):
+        """Test calling unknown tool via registry."""
+        result = await registry.call_tool(
             "unknown_aggregation",
             {"dataset_name": "ds", "field": "f"},
         )
-
-
 
         assert len(result) == 1
         data = json.loads(result[0].text)
@@ -321,9 +340,11 @@ class TestHandleToolCall:
         assert "Unknown tool" in data["error"]
 
     @pytest.mark.asyncio
-    async def test_handle_get_values(self, test_dataset):
-        """Test MCP tool call for get_values with limit."""
-        result = await handle_tool_call(
+    async def test_registry_get_values(
+        self, registry, test_dataset
+    ):
+        """Test calling get_values with limit via registry."""
+        result = await registry.call_tool(
             "get_values",
             {
                 "dataset_name": test_dataset.name,
@@ -331,8 +352,6 @@ class TestHandleToolCall:
                 "limit": 3,
             },
         )
-
-
 
         assert len(result) == 1
         data = json.loads(result[0].text)

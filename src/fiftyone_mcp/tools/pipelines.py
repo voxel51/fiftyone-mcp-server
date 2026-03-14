@@ -1,12 +1,12 @@
 """
-Pipeline execution and delegated operation tools for FiftyOne MCP server.
+Pipeline execution and delegated operation tools for FiftyOne
+MCP server.
 
 | Copyright 2017-2026, Voxel51, Inc.
 | `voxel51.com <https://voxel51.com/>`_
 |
 """
 
-import json
 import logging
 import traceback
 
@@ -14,9 +14,9 @@ from fiftyone.operators import registry as op_registry
 from fiftyone.operators.executor import (
     execute_or_delegate_operator,
 )
-from mcp.types import Tool, TextContent
+from mcp.types import Tool
 
-from .operators import get_context_manager
+from .operators import _get_request_params
 from .utils import format_response, safe_serialize
 
 
@@ -24,30 +24,38 @@ logger = logging.getLogger(__name__)
 
 
 def list_delegated_operations(
-    run_state=None, dataset_name=None, operator=None, limit=20
+    ctx,
+    run_state=None,
+    dataset_name=None,
+    operator=None,
+    limit=20,
 ):
     """Lists delegated operations matching the given criteria.
 
     Args:
-        run_state (None): an optional run state to filter by. One of
-            ``"scheduled"``, ``"queued"``, ``"running"``, ``"completed"``,
-            ``"failed"``
-        dataset_name (None): an optional dataset name to filter by
-        operator (None): an optional operator URI to filter by
+        ctx: an optional
+            :class:`fiftyone.operators.executor.ExecutionContext`
+        run_state (None): an optional run state to filter by
+        dataset_name (None): an optional dataset name filter
+        operator (None): an optional operator URI filter
         limit (20): the maximum number of operations to return
 
     Returns:
         a dict containing list of delegated operations
     """
     try:
-        from fiftyone.operators.delegated import DelegatedOperationService
+        from fiftyone.operators.delegated import (
+            DelegatedOperationService,
+        )
 
         svc = DelegatedOperationService()
 
         paging = None
         if limit:
             try:
-                from fiftyone.factory import DelegatedOperationPagingParams
+                from fiftyone.factory import (
+                    DelegatedOperationPagingParams,
+                )
 
                 paging = DelegatedOperationPagingParams(limit=limit)
             except ImportError:
@@ -72,12 +80,12 @@ def list_delegated_operations(
                     if op.context
                     else None
                 ),
-                "queued_at": str(op.queued_at) if op.queued_at else None,
-                "started_at": str(op.started_at) if op.started_at else None,
+                "queued_at": (str(op.queued_at) if op.queued_at else None),
+                "started_at": (str(op.started_at) if op.started_at else None),
                 "completed_at": (
                     str(op.completed_at) if op.completed_at else None
                 ),
-                "failed_at": str(op.failed_at) if op.failed_at else None,
+                "failed_at": (str(op.failed_at) if op.failed_at else None),
                 "has_pipeline": op.pipeline is not None,
             }
 
@@ -98,24 +106,28 @@ def list_delegated_operations(
         return format_response(
             None,
             success=False,
-            error="Delegated operations require a MongoDB-backed FiftyOne "
-            "installation. The DelegatedOperationService is not available.",
+            error=(
+                "Delegated operations require a "
+                "MongoDB-backed FiftyOne installation. "
+                "The DelegatedOperationService is not "
+                "available."
+            ),
         )
 
     except Exception as e:
-        logger.error(f"Failed to list delegated operations: {e}")
+        logger.error("Failed to list delegated operations: %s", e)
         return format_response(None, success=False, error=str(e))
 
 
 def _validate_pipeline_stages(stages):
-    """Validates that all pipeline stages have valid operator URIs.
+    """Validates that all pipeline stages have valid operators.
 
     Args:
         stages: a list of stage dicts
 
     Returns:
-        a formatted error response dict if validation fails, or None if
-        all stages are valid
+        a formatted error response dict if validation fails,
+        or None if all stages are valid
     """
     if not stages:
         return format_response(
@@ -130,7 +142,7 @@ def _validate_pipeline_stages(stages):
             return format_response(
                 None,
                 success=False,
-                error=f"Stage {idx} is missing 'operator_uri'",
+                error=("Stage %d is missing 'operator_uri'" % idx),
             )
 
         operator = op_registry.get_operator(uri)
@@ -138,31 +150,29 @@ def _validate_pipeline_stages(stages):
             return format_response(
                 None,
                 success=False,
-                error=f"Stage {idx} operator '{uri}' not found",
+                error=("Stage %d operator '%s' not found" % (idx, uri)),
             )
 
     return None
 
 
-async def execute_pipeline_async(
-    stages, delegate=False, delegation_target=None
+async def execute_pipeline(
+    ctx,
+    stages,
+    dataset_name=None,
+    delegate=False,
+    delegation_target=None,
 ):
     """Executes a multi-stage operator pipeline.
 
-    For immediate execution, executes stages sequentially with per-stage
-    result tracking. Follows FiftyOne's pipeline execution semantics:
-    sequential execution, ``always_run`` handling, and error tracking.
-
-    For delegated execution, queues the pipeline via FiftyOne's
-    ``DelegatedOperationService``.
-
     Args:
-        stages: a list of stage dicts, each with ``operator_uri`` and
-            optional ``name``, ``params``, ``always_run`` keys
-        delegate (False): whether to delegate the pipeline to a background
-            worker
-        delegation_target (None): an optional orchestrator target for
-            delegated execution
+        ctx: an optional
+            :class:`fiftyone.operators.executor.ExecutionContext`
+        stages: a list of stage dicts
+        dataset_name (None): an optional dataset name (used
+            when ``ctx`` is None)
+        delegate (False): whether to delegate the pipeline
+        delegation_target (None): an optional orchestrator target
 
     Returns:
         a dict containing pipeline execution results
@@ -172,23 +182,26 @@ async def execute_pipeline_async(
         if validation_error:
             return validation_error
 
-        cm = get_context_manager()
-        if not cm.request_params:
+        request_params = _get_request_params(ctx, dataset_name=dataset_name)
+        if request_params is None:
             return format_response(
                 None,
                 success=False,
-                error="Context not set. Use set_context first.",
+                error=(
+                    "Either an execution context or "
+                    "dataset_name is required."
+                ),
             )
 
         if delegate:
             return await _execute_pipeline_delegated(
-                stages, cm, delegation_target
+                stages, request_params, delegation_target
             )
 
-        return await _execute_pipeline_immediate(stages, cm)
+        return await _execute_pipeline_immediate(stages, request_params)
 
     except Exception as e:
-        logger.error(f"Failed to execute pipeline: {e}")
+        logger.error("Failed to execute pipeline: %s", e)
         return format_response(
             None,
             success=False,
@@ -197,15 +210,12 @@ async def execute_pipeline_async(
         )
 
 
-async def _execute_pipeline_immediate(stages, cm):
+async def _execute_pipeline_immediate(stages, request_params):
     """Executes pipeline stages immediately and sequentially.
-
-    Models execution on FiftyOne's ``do_execute_pipeline()``: sequential
-    execution, ``always_run`` handling, first-error capture.
 
     Args:
         stages: a list of stage dicts
-        cm: the :class:`ContextManager` instance
+        request_params: the base request params dict
 
     Returns:
         a dict containing per-stage execution results
@@ -217,7 +227,7 @@ async def _execute_pipeline_immediate(stages, cm):
 
     for idx, stage in enumerate(stages):
         uri = stage["operator_uri"]
-        name = stage.get("name") or f"stage_{idx}_{uri.split('/')[-1]}"
+        name = stage.get("name") or ("stage_%d_%s" % (idx, uri.split("/")[-1]))
         params = stage.get("params") or {}
         always_run = stage.get("always_run", False)
 
@@ -236,12 +246,12 @@ async def _execute_pipeline_immediate(stages, cm):
             continue
 
         try:
-            request_params = dict(cm.request_params)
-            request_params["params"] = params
+            stage_params = dict(request_params)
+            stage_params["params"] = params
 
             execution_result = await execute_or_delegate_operator(
                 uri,
-                request_params,
+                stage_params,
                 exhaust=True,
             )
 
@@ -290,20 +300,27 @@ async def _execute_pipeline_immediate(stages, cm):
     )
 
 
-async def _execute_pipeline_delegated(stages, cm, delegation_target=None):
+async def _execute_pipeline_delegated(
+    stages, request_params, delegation_target=None
+):
     """Queues a pipeline for delegated execution.
 
     Args:
         stages: a list of stage dicts
-        cm: the :class:`ContextManager` instance
+        request_params: the base request params dict
         delegation_target (None): an optional orchestrator target
 
     Returns:
         a dict containing the queued operation info
     """
     try:
-        from fiftyone.operators.delegated import DelegatedOperationService
-        from fiftyone.operators.types import Pipeline, PipelineStage
+        from fiftyone.operators.delegated import (
+            DelegatedOperationService,
+        )
+        from fiftyone.operators.types import (
+            Pipeline,
+            PipelineStage,
+        )
 
         pipeline = Pipeline(
             stages=[
@@ -317,15 +334,14 @@ async def _execute_pipeline_delegated(stages, cm, delegation_target=None):
             ]
         )
 
-        request_params = dict(cm.request_params)
-        request_params["delegated"] = True
+        rp = dict(request_params)
+        rp["delegated"] = True
         if delegation_target:
-            request_params["delegation_target"] = delegation_target
+            rp["delegation_target"] = delegation_target
 
-        # Use the first stage's operator as the pipeline operator label
-        pipeline_label = (
-            f"pipeline:{stages[0]['operator_uri'].split('/')[-1]}"
-            f"_+{len(stages) - 1}_more"
+        pipeline_label = "pipeline:%s_+%d_more" % (
+            stages[0]["operator_uri"].split("/")[-1],
+            len(stages) - 1,
         )
 
         svc = DelegatedOperationService()
@@ -333,9 +349,7 @@ async def _execute_pipeline_delegated(stages, cm, delegation_target=None):
             operator=stages[0]["operator_uri"],
             label=pipeline_label,
             delegation_target=delegation_target,
-            context={
-                "request_params": request_params,
-            },
+            context={"request_params": rp},
             pipeline=pipeline,
         )
 
@@ -345,7 +359,7 @@ async def _execute_pipeline_delegated(stages, cm, delegation_target=None):
                 "operation_id": str(op.id),
                 "stage_count": len(stages),
                 "label": pipeline_label,
-                "message": "Pipeline queued for delegated execution",
+                "message": ("Pipeline queued for delegated execution"),
             }
         )
 
@@ -353,12 +367,14 @@ async def _execute_pipeline_delegated(stages, cm, delegation_target=None):
         return format_response(
             None,
             success=False,
-            error="Delegated pipeline execution requires a MongoDB-backed "
-            "FiftyOne installation.",
+            error=(
+                "Delegated pipeline execution requires a "
+                "MongoDB-backed FiftyOne installation."
+            ),
         )
 
     except Exception as e:
-        logger.error(f"Failed to delegate pipeline: {e}")
+        logger.error("Failed to delegate pipeline: %s", e)
         return format_response(
             None,
             success=False,
@@ -367,40 +383,65 @@ async def _execute_pipeline_delegated(stages, cm, delegation_target=None):
         )
 
 
-def get_pipeline_tools():
-    """Gets the list of pipeline and delegation MCP tools.
+def register_tools(registry):
+    """Registers all pipeline tools with the registry.
 
-    Returns:
-        a list of :class:`mcp.types.Tool` instances
+    Args:
+        registry: a :class:`fiftyone_mcp.registry.ToolRegistry`
     """
-    return [
+    registry.register(
         Tool(
             name="execute_pipeline",
-            description="Execute a multi-stage operator pipeline. Stages run sequentially sharing the same execution context (dataset, view, selection). If a stage fails, subsequent stages are skipped unless marked with always_run=true. Supports delegation for background execution. WORKFLOW: (1) Use list_operators + get_operator_schema to plan stages, (2) Call execute_pipeline with the stages array. Requires context set via set_context first.",
+            description=(
+                "Execute a multi-stage operator pipeline. "
+                "Stages run sequentially sharing the same "
+                "execution context (dataset, view, "
+                "selection). If a stage fails, subsequent "
+                "stages are skipped unless marked with "
+                "always_run=true. Supports delegation for "
+                "background execution. WORKFLOW: (1) Use "
+                "list_operators + get_operator_schema to plan "
+                "stages, (2) Call execute_pipeline with the "
+                "stages array. Requires either an execution "
+                "context or dataset_name."
+            ),
             inputSchema={
                 "type": "object",
                 "properties": {
                     "stages": {
                         "type": "array",
-                        "description": "List of pipeline stages to execute sequentially",
+                        "description": (
+                            "List of pipeline stages to "
+                            "execute sequentially"
+                        ),
                         "items": {
                             "type": "object",
                             "properties": {
                                 "operator_uri": {
                                     "type": "string",
-                                    "description": "The URI of the operator to execute (from list_operators)",
+                                    "description": (
+                                        "The URI of the " "operator to execute"
+                                    ),
                                 },
                                 "name": {
                                     "type": "string",
-                                    "description": "Optional human-readable name for this stage",
+                                    "description": (
+                                        "Optional " "human-readable name"
+                                    ),
                                 },
                                 "params": {
                                     "type": "object",
-                                    "description": "Parameters for the operator. Use get_operator_schema to see what parameters are required.",
+                                    "description": (
+                                        "Parameters for the " "operator"
+                                    ),
                                 },
                                 "always_run": {
                                     "type": "boolean",
-                                    "description": "If true, run this stage even if a prior stage failed (useful for cleanup/finalization stages)",
+                                    "description": (
+                                        "If true, run even "
+                                        "if a prior stage "
+                                        "failed"
+                                    ),
                                     "default": False,
                                 },
                             },
@@ -408,22 +449,43 @@ def get_pipeline_tools():
                         },
                         "minItems": 1,
                     },
+                    "dataset_name": {
+                        "type": "string",
+                        "description": (
+                            "Dataset name for execution "
+                            "(used when no execution context "
+                            "is available)"
+                        ),
+                    },
                     "delegate": {
                         "type": "boolean",
-                        "description": "If true, queue the entire pipeline for delegated (background) execution instead of running immediately",
+                        "description": (
+                            "If true, queue for background " "execution"
+                        ),
                         "default": False,
                     },
                     "delegation_target": {
                         "type": "string",
-                        "description": "Optional orchestrator target for delegated execution (e.g., an Airflow queue name)",
+                        "description": ("Optional orchestrator target"),
                     },
                 },
                 "required": ["stages"],
             },
         ),
+        execute_pipeline,
+    )
+
+    registry.register(
         Tool(
             name="list_delegated_operations",
-            description="List delegated (background) operations and their status. Use this to check on operations that were queued via execute_operator or execute_pipeline with delegate=true. Filter by run state (queued, running, completed, failed), dataset, or operator URI.",
+            description=(
+                "List delegated (background) operations and "
+                "their status. Use this to check on "
+                "operations that were queued via "
+                "execute_operator or execute_pipeline with "
+                "delegate=true. Filter by run state, "
+                "dataset, or operator URI."
+            ),
             inputSchema={
                 "type": "object",
                 "properties": {
@@ -436,53 +498,26 @@ def get_pipeline_tools():
                             "completed",
                             "failed",
                         ],
-                        "description": "Filter by run state. Omit to return all states.",
+                        "description": ("Filter by run state"),
                     },
                     "dataset_name": {
                         "type": "string",
-                        "description": "Filter by dataset name",
+                        "description": ("Filter by dataset name"),
                     },
                     "operator": {
                         "type": "string",
-                        "description": "Filter by operator URI",
+                        "description": ("Filter by operator URI"),
                     },
                     "limit": {
                         "type": "integer",
-                        "description": "Maximum number of operations to return (default 20)",
+                        "description": (
+                            "Maximum number of operations "
+                            "to return (default 20)"
+                        ),
                         "default": 20,
                     },
                 },
             },
         ),
-    ]
-
-
-async def handle_pipeline_tool(name, arguments):
-    """Handles pipeline and delegation tool calls.
-
-    Args:
-        name: the name of the tool
-        arguments: a dict of arguments for the tool
-
-    Returns:
-        a list of :class:`mcp.types.TextContent` instances
-    """
-    if name == "execute_pipeline":
-        result = await execute_pipeline_async(
-            stages=arguments["stages"],
-            delegate=arguments.get("delegate", False),
-            delegation_target=arguments.get("delegation_target"),
-        )
-    elif name == "list_delegated_operations":
-        result = list_delegated_operations(
-            run_state=arguments.get("run_state"),
-            dataset_name=arguments.get("dataset_name"),
-            operator=arguments.get("operator"),
-            limit=arguments.get("limit", 20),
-        )
-    else:
-        result = format_response(
-            None, success=False, error=f"Unknown tool: {name}"
-        )
-
-    return [TextContent(type="text", text=json.dumps(result, indent=2))]
+        list_delegated_operations,
+    )

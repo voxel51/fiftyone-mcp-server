@@ -11,6 +11,7 @@ import json
 import pytest
 
 import fiftyone as fo
+from fiftyone_mcp.registry import ToolRegistry
 from fiftyone_mcp.tools.app_config import (
     get_app_config,
     get_color_scheme,
@@ -18,7 +19,7 @@ from fiftyone_mcp.tools.app_config import (
     get_sidebar_groups,
     set_sidebar_groups,
     set_active_fields,
-    handle_tool_call,
+    register_tools,
 )
 
 
@@ -33,7 +34,10 @@ def test_dataset():
     dataset = fo.Dataset(dataset_name)
     dataset.persistent = True
     dataset.add_samples(
-        [fo.Sample(filepath="/tmp/img%d.jpg" % i) for i in range(3)]
+        [
+            fo.Sample(filepath="/tmp/img%d.jpg" % i)
+            for i in range(3)
+        ]
     )
 
     yield dataset
@@ -45,17 +49,23 @@ def test_dataset():
 class TestGetAppConfig:
     """Tests for get_app_config tool."""
 
-    def test_get_app_config_returns_defaults(self, test_dataset):
-        """Test that get_app_config returns a valid config dict."""
-        result = get_app_config(test_dataset.name)
+    def test_get_app_config_returns_defaults(
+        self, test_dataset
+    ):
+        """Test that get_app_config returns a valid dict."""
+        result = get_app_config(None, test_dataset.name)
 
         assert result["success"] is True
-        assert result["data"]["dataset_name"] == test_dataset.name
+        assert (
+            result["data"]["dataset_name"] == test_dataset.name
+        )
         assert "app_config" in result["data"]
 
-    def test_get_app_config_has_expected_keys(self, test_dataset):
-        """Test that app_config contains the expected top-level keys."""
-        result = get_app_config(test_dataset.name)
+    def test_get_app_config_has_expected_keys(
+        self, test_dataset
+    ):
+        """Test that app_config has expected top-level keys."""
+        result = get_app_config(None, test_dataset.name)
 
         config = result["data"]["app_config"]
         assert "grid_media_field" in config
@@ -66,7 +76,9 @@ class TestGetAppConfig:
 
     def test_get_app_config_nonexistent_dataset(self):
         """Test with a non-existent dataset returns error."""
-        result = get_app_config("nonexistent_dataset_xyz")
+        result = get_app_config(
+            None, "nonexistent_dataset_xyz"
+        )
 
         assert result["success"] is False
         assert "error" in result
@@ -75,17 +87,23 @@ class TestGetAppConfig:
 class TestGetColorScheme:
     """Tests for get_color_scheme tool."""
 
-    def test_get_color_scheme_default_is_none(self, test_dataset):
-        """Test that a fresh dataset has no color scheme set."""
-        result = get_color_scheme(test_dataset.name)
+    def test_get_color_scheme_default_is_none(
+        self, test_dataset
+    ):
+        """Test that a fresh dataset has no color scheme."""
+        result = get_color_scheme(None, test_dataset.name)
 
         assert result["success"] is True
-        assert result["data"]["dataset_name"] == test_dataset.name
+        assert (
+            result["data"]["dataset_name"] == test_dataset.name
+        )
         assert result["data"]["color_scheme"] is None
 
     def test_get_color_scheme_nonexistent_dataset(self):
         """Test with a non-existent dataset returns error."""
-        result = get_color_scheme("nonexistent_dataset_xyz")
+        result = get_color_scheme(
+            None, "nonexistent_dataset_xyz"
+        )
 
         assert result["success"] is False
         assert "error" in result
@@ -94,32 +112,57 @@ class TestGetColorScheme:
 class TestSetColorScheme:
     """Tests for set_color_scheme tool."""
 
-    def test_set_color_scheme_color_by_field(self, test_dataset):
+    def test_set_color_scheme_color_by_field(
+        self, test_dataset
+    ):
         """Test setting color_by to 'field'."""
-        result = set_color_scheme(test_dataset.name, color_by="field")
+        result = set_color_scheme(
+            None, test_dataset.name, color_by="field"
+        )
 
         assert result["success"] is True
-        assert result["data"]["color_scheme"]["color_by"] == "field"
+        assert (
+            result["data"]["color_scheme"]["color_by"]
+            == "field"
+        )
 
     def test_set_color_scheme_color_pool(self, test_dataset):
         """Test setting a custom color pool."""
         pool = ["#FF0000", "#00FF00", "#0000FF"]
-        result = set_color_scheme(test_dataset.name, color_pool=pool)
+        result = set_color_scheme(
+            None, test_dataset.name, color_pool=pool
+        )
 
         assert result["success"] is True
-        assert result["data"]["color_scheme"]["color_pool"] == pool
+        assert (
+            result["data"]["color_scheme"]["color_pool"]
+            == pool
+        )
 
-    def test_set_color_scheme_persists_after_reload(self, test_dataset):
-        """Test that color scheme is persisted after dataset reload."""
-        set_color_scheme(test_dataset.name, color_by="value")
+    def test_set_color_scheme_persists_after_reload(
+        self, test_dataset
+    ):
+        """Test that color scheme persists after reload."""
+        set_color_scheme(
+            None, test_dataset.name, color_by="value"
+        )
 
         test_dataset.reload()
-        assert test_dataset.app_config.color_scheme is not None
-        assert test_dataset.app_config.color_scheme.color_by == "value"
+        assert (
+            test_dataset.app_config.color_scheme is not None
+        )
+        assert (
+            test_dataset.app_config.color_scheme.color_by
+            == "value"
+        )
 
     def test_set_color_scheme_nonexistent_dataset(self):
         """Test with a non-existent dataset returns error."""
-        result = set_color_scheme("nonexistent_dataset_xyz", color_by="field")
+        result = set_color_scheme(
+            None,
+            "nonexistent_dataset_xyz",
+            color_by="field",
+        )
 
         assert result["success"] is False
         assert "error" in result
@@ -129,16 +172,20 @@ class TestGetSidebarGroups:
     """Tests for get_sidebar_groups tool."""
 
     def test_get_sidebar_groups_default(self, test_dataset):
-        """Test that a fresh dataset returns None for sidebar groups."""
-        result = get_sidebar_groups(test_dataset.name)
+        """Test that a fresh dataset returns sidebar groups."""
+        result = get_sidebar_groups(None, test_dataset.name)
 
         assert result["success"] is True
-        assert result["data"]["dataset_name"] == test_dataset.name
+        assert (
+            result["data"]["dataset_name"] == test_dataset.name
+        )
         assert "sidebar_groups" in result["data"]
 
     def test_get_sidebar_groups_nonexistent_dataset(self):
         """Test with a non-existent dataset returns error."""
-        result = get_sidebar_groups("nonexistent_dataset_xyz")
+        result = get_sidebar_groups(
+            None, "nonexistent_dataset_xyz"
+        )
 
         assert result["success"] is False
         assert "error" in result
@@ -147,13 +194,25 @@ class TestGetSidebarGroups:
 class TestSetSidebarGroups:
     """Tests for set_sidebar_groups tool."""
 
-    def test_set_sidebar_groups_custom_groups(self, test_dataset):
+    def test_set_sidebar_groups_custom_groups(
+        self, test_dataset
+    ):
         """Test setting custom sidebar groups."""
         groups = [
-            {"name": "labels", "paths": ["ground_truth"], "expanded": True},
-            {"name": "metadata", "paths": ["filepath"], "expanded": False},
+            {
+                "name": "labels",
+                "paths": ["ground_truth"],
+                "expanded": True,
+            },
+            {
+                "name": "metadata",
+                "paths": ["filepath"],
+                "expanded": False,
+            },
         ]
-        result = set_sidebar_groups(test_dataset.name, groups)
+        result = set_sidebar_groups(
+            None, test_dataset.name, groups
+        )
 
         assert result["success"] is True
         returned = result["data"]["sidebar_groups"]
@@ -161,19 +220,31 @@ class TestSetSidebarGroups:
         assert returned[0]["name"] == "labels"
         assert returned[1]["name"] == "metadata"
 
-    def test_set_sidebar_groups_persists_after_reload(self, test_dataset):
-        """Test that sidebar groups are persisted after reload."""
-        groups = [{"name": "my_group", "paths": ["filepath"]}]
-        set_sidebar_groups(test_dataset.name, groups)
+    def test_set_sidebar_groups_persists_after_reload(
+        self, test_dataset
+    ):
+        """Test that sidebar groups persist after reload."""
+        groups = [
+            {"name": "my_group", "paths": ["filepath"]}
+        ]
+        set_sidebar_groups(None, test_dataset.name, groups)
 
         test_dataset.reload()
-        assert test_dataset.app_config.sidebar_groups is not None
-        assert len(test_dataset.app_config.sidebar_groups) == 1
-        assert test_dataset.app_config.sidebar_groups[0].name == "my_group"
+        assert (
+            test_dataset.app_config.sidebar_groups is not None
+        )
+        assert (
+            len(test_dataset.app_config.sidebar_groups) == 1
+        )
+        assert (
+            test_dataset.app_config.sidebar_groups[0].name
+            == "my_group"
+        )
 
     def test_set_sidebar_groups_nonexistent_dataset(self):
         """Test with a non-existent dataset returns error."""
         result = set_sidebar_groups(
+            None,
             "nonexistent_dataset_xyz",
             [{"name": "group"}],
         )
@@ -185,28 +256,49 @@ class TestSetSidebarGroups:
 class TestSetActiveFields:
     """Tests for set_active_fields tool."""
 
-    def test_set_active_fields_include_mode(self, test_dataset):
-        """Test setting active fields in include mode (exclude=False)."""
+    def test_set_active_fields_include_mode(
+        self, test_dataset
+    ):
+        """Test setting active fields in include mode."""
         result = set_active_fields(
-            test_dataset.name, paths=["filepath"], exclude=False
+            None,
+            test_dataset.name,
+            paths=["filepath"],
+            exclude=False,
         )
 
         assert result["success"] is True
-        assert result["data"]["active_fields"]["paths"] == ["filepath"]
-        assert result["data"]["active_fields"]["exclude"] is False
+        assert result["data"]["active_fields"]["paths"] == [
+            "filepath"
+        ]
+        assert (
+            result["data"]["active_fields"]["exclude"]
+            is False
+        )
 
-    def test_set_active_fields_exclude_mode(self, test_dataset):
-        """Test setting active fields in exclude mode (exclude=True)."""
+    def test_set_active_fields_exclude_mode(
+        self, test_dataset
+    ):
+        """Test setting active fields in exclude mode."""
         result = set_active_fields(
-            test_dataset.name, paths=["metadata"], exclude=True
+            None,
+            test_dataset.name,
+            paths=["metadata"],
+            exclude=True,
         )
 
         assert result["success"] is True
-        assert result["data"]["active_fields"]["exclude"] is True
+        assert (
+            result["data"]["active_fields"]["exclude"] is True
+        )
 
-    def test_set_active_fields_persists_after_reload(self, test_dataset):
-        """Test that active fields are persisted after reload."""
-        set_active_fields(test_dataset.name, paths=["filepath"])
+    def test_set_active_fields_persists_after_reload(
+        self, test_dataset
+    ):
+        """Test that active fields persist after reload."""
+        set_active_fields(
+            None, test_dataset.name, paths=["filepath"]
+        )
 
         test_dataset.reload()
         af = test_dataset.app_config.active_fields
@@ -216,20 +308,30 @@ class TestSetActiveFields:
     def test_set_active_fields_nonexistent_dataset(self):
         """Test with a non-existent dataset returns error."""
         result = set_active_fields(
-            "nonexistent_dataset_xyz", paths=["filepath"]
+            None,
+            "nonexistent_dataset_xyz",
+            paths=["filepath"],
         )
 
         assert result["success"] is False
         assert "error" in result
 
 
-class TestHandleToolCall:
-    """Integration tests for the app config tool call handler."""
+class TestRegistry:
+    """Integration tests using ToolRegistry."""
+
+    @pytest.fixture
+    def registry(self):
+        reg = ToolRegistry()
+        register_tools(reg)
+        return reg
 
     @pytest.mark.asyncio
-    async def test_handle_get_app_config(self, test_dataset):
-        """Test MCP tool call for get_app_config."""
-        result = await handle_tool_call(
+    async def test_registry_get_app_config(
+        self, registry, test_dataset
+    ):
+        """Test registry call for get_app_config."""
+        result = await registry.call_tool(
             "get_app_config",
             {"dataset_name": test_dataset.name},
         )
@@ -240,9 +342,11 @@ class TestHandleToolCall:
         assert "app_config" in data["data"]
 
     @pytest.mark.asyncio
-    async def test_handle_set_color_scheme(self, test_dataset):
-        """Test MCP tool call for set_color_scheme."""
-        result = await handle_tool_call(
+    async def test_registry_set_color_scheme(
+        self, registry, test_dataset
+    ):
+        """Test registry call for set_color_scheme."""
+        result = await registry.call_tool(
             "set_color_scheme",
             {
                 "dataset_name": test_dataset.name,
@@ -254,28 +358,39 @@ class TestHandleToolCall:
         assert len(result) == 1
         data = json.loads(result[0].text)
         assert data["success"] is True
-        assert data["data"]["color_scheme"]["color_by"] == "value"
+        assert (
+            data["data"]["color_scheme"]["color_by"]
+            == "value"
+        )
 
     @pytest.mark.asyncio
-    async def test_handle_set_sidebar_groups(self, test_dataset):
-        """Test MCP tool call for set_sidebar_groups."""
-        result = await handle_tool_call(
+    async def test_registry_set_sidebar_groups(
+        self, registry, test_dataset
+    ):
+        """Test registry call for set_sidebar_groups."""
+        result = await registry.call_tool(
             "set_sidebar_groups",
             {
                 "dataset_name": test_dataset.name,
-                "groups": [{"name": "core", "paths": ["filepath"]}],
+                "groups": [
+                    {"name": "core", "paths": ["filepath"]}
+                ],
             },
         )
 
         assert len(result) == 1
         data = json.loads(result[0].text)
         assert data["success"] is True
-        assert data["data"]["sidebar_groups"][0]["name"] == "core"
+        assert (
+            data["data"]["sidebar_groups"][0]["name"] == "core"
+        )
 
     @pytest.mark.asyncio
-    async def test_handle_set_active_fields(self, test_dataset):
-        """Test MCP tool call for set_active_fields."""
-        result = await handle_tool_call(
+    async def test_registry_set_active_fields(
+        self, registry, test_dataset
+    ):
+        """Test registry call for set_active_fields."""
+        result = await registry.call_tool(
             "set_active_fields",
             {
                 "dataset_name": test_dataset.name,
@@ -288,32 +403,9 @@ class TestHandleToolCall:
         assert data["success"] is True
 
     @pytest.mark.asyncio
-    async def test_handle_missing_dataset_name(self):
-        """Test MCP tool call without required dataset_name."""
-        result = await handle_tool_call("get_app_config", {})
-
-        assert len(result) == 1
-        data = json.loads(result[0].text)
-        assert data["success"] is False
-        assert "dataset_name" in data["error"]
-
-    @pytest.mark.asyncio
-    async def test_handle_missing_groups(self, test_dataset):
-        """Test set_sidebar_groups call without required groups arg."""
-        result = await handle_tool_call(
-            "set_sidebar_groups",
-            {"dataset_name": test_dataset.name},
-        )
-
-        assert len(result) == 1
-        data = json.loads(result[0].text)
-        assert data["success"] is False
-        assert "groups" in data["error"]
-
-    @pytest.mark.asyncio
-    async def test_handle_unknown_tool(self):
-        """Test MCP tool call with unknown tool name."""
-        result = await handle_tool_call(
+    async def test_registry_unknown_tool(self, registry):
+        """Test registry call with unknown tool name."""
+        result = await registry.call_tool(
             "unknown_app_config_tool",
             {"dataset_name": "ds"},
         )

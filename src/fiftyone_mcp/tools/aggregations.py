@@ -6,11 +6,10 @@ Aggregation tools for FiftyOne MCP server.
 |
 """
 
-import json
 import logging
 
 import fiftyone as fo
-from mcp.types import Tool, TextContent
+from mcp.types import Tool
 
 from .utils import _get_view, format_response, safe_serialize
 
@@ -18,10 +17,12 @@ from .utils import _get_view, format_response, safe_serialize
 logger = logging.getLogger(__name__)
 
 
-def count_values(dataset_name, field, view_stages=None):
+def count_values(ctx, dataset_name, field, view_stages=None):
     """Counts the occurrences of each value for a field.
 
     Args:
+        ctx: an optional
+            :class:`fiftyone.operators.executor.ExecutionContext`
         dataset_name: the name of the dataset
         field: the field path to count values for
         view_stages (None): an optional list of serialized view stage
@@ -49,10 +50,12 @@ def count_values(dataset_name, field, view_stages=None):
         return format_response(None, success=False, error=str(e))
 
 
-def distinct(dataset_name, field, view_stages=None):
+def distinct(ctx, dataset_name, field, view_stages=None):
     """Gets the distinct values for a field.
 
     Args:
+        ctx: an optional
+            :class:`fiftyone.operators.executor.ExecutionContext`
         dataset_name: the name of the dataset
         field: the field path to get distinct values for
         view_stages (None): an optional list of serialized view stage
@@ -79,10 +82,12 @@ def distinct(dataset_name, field, view_stages=None):
         return format_response(None, success=False, error=str(e))
 
 
-def compute_bounds(dataset_name, field, view_stages=None):
+def compute_bounds(ctx, dataset_name, field, view_stages=None):
     """Gets the min and max values for a numeric field.
 
     Args:
+        ctx: an optional
+            :class:`fiftyone.operators.executor.ExecutionContext`
         dataset_name: the name of the dataset
         field: the numeric field path
         view_stages (None): an optional list of serialized view stage
@@ -103,10 +108,12 @@ def compute_bounds(dataset_name, field, view_stages=None):
         return format_response(None, success=False, error=str(e))
 
 
-def compute_mean(dataset_name, field, view_stages=None):
+def compute_mean(ctx, dataset_name, field, view_stages=None):
     """Computes the mean value of a numeric field.
 
     Args:
+        ctx: an optional
+            :class:`fiftyone.operators.executor.ExecutionContext`
         dataset_name: the name of the dataset
         field: the numeric field path
         view_stages (None): an optional list of serialized view stage
@@ -127,10 +134,12 @@ def compute_mean(dataset_name, field, view_stages=None):
         return format_response(None, success=False, error=str(e))
 
 
-def compute_sum(dataset_name, field, view_stages=None):
+def compute_sum(ctx, dataset_name, field, view_stages=None):
     """Computes the sum of a numeric field across all samples.
 
     Args:
+        ctx: an optional
+            :class:`fiftyone.operators.executor.ExecutionContext`
         dataset_name: the name of the dataset
         field: the numeric field path
         view_stages (None): an optional list of serialized view stage
@@ -151,10 +160,12 @@ def compute_sum(dataset_name, field, view_stages=None):
         return format_response(None, success=False, error=str(e))
 
 
-def compute_std(dataset_name, field, view_stages=None):
+def compute_std(ctx, dataset_name, field, view_stages=None):
     """Computes the standard deviation of a numeric field.
 
     Args:
+        ctx: an optional
+            :class:`fiftyone.operators.executor.ExecutionContext`
         dataset_name: the name of the dataset
         field: the numeric field path
         view_stages (None): an optional list of serialized view stage
@@ -176,6 +187,7 @@ def compute_std(dataset_name, field, view_stages=None):
 
 
 def histogram_values(
+    ctx,
     dataset_name,
     field,
     bins=50,
@@ -185,6 +197,8 @@ def histogram_values(
     """Computes a histogram of values for a field.
 
     Args:
+        ctx: an optional
+            :class:`fiftyone.operators.executor.ExecutionContext`
         dataset_name: the name of the dataset
         field: the field path
         bins (50): the number of histogram bins
@@ -221,10 +235,12 @@ def histogram_values(
         return format_response(None, success=False, error=str(e))
 
 
-def get_values(dataset_name, field, view_stages=None, limit=10000):
+def get_values(ctx, dataset_name, field, view_stages=None, limit=10000):
     """Gets the values of a field across all samples.
 
     Args:
+        ctx: an optional
+            :class:`fiftyone.operators.executor.ExecutionContext`
         dataset_name: the name of the dataset
         field: the field path
         view_stages (None): an optional list of serialized view stage
@@ -260,21 +276,21 @@ def get_values(dataset_name, field, view_stages=None, limit=10000):
         return format_response(None, success=False, error=str(e))
 
 
-def get_aggregation_tools():
-    """Gets the list of aggregation MCP tools.
+def register_tools(registry):
+    """Registers all aggregation tools with the registry.
 
-    Returns:
-        a list of :class:`mcp.types.Tool` instances
+    Args:
+        registry: a :class:`fiftyone_mcp.registry.ToolRegistry`
     """
-    return [
+    registry.register(
         Tool(
             name="count_values",
             description=(
-                "Count occurrences of each value for a field across a "
-                "dataset. Returns a {value: count} dict. Useful for "
-                "understanding label distributions, tag frequencies, or "
-                "any categorical field. Optionally filter with "
-                "view_stages before counting."
+                "Count occurrences of each value for a field "
+                "across a dataset. Returns a {value: count} dict. "
+                "Useful for understanding label distributions, "
+                "tag frequencies, or any categorical field. "
+                "Optionally filter with view_stages before counting."
             ),
             inputSchema={
                 "type": "object",
@@ -287,28 +303,34 @@ def get_aggregation_tools():
                         "type": "string",
                         "description": (
                             "Field path to count values for "
-                            "(e.g., 'tags', 'ground_truth.label')"
+                            "(e.g., 'tags', "
+                            "'ground_truth.label')"
                         ),
                     },
                     "view_stages": {
                         "type": "array",
                         "items": {"type": "object"},
                         "description": (
-                            "Optional list of serialized view stage "
-                            "dicts to pre-filter the dataset"
+                            "Optional list of serialized view "
+                            "stage dicts to pre-filter the dataset"
                         ),
                     },
                 },
                 "required": ["dataset_name", "field"],
             },
         ),
+        count_values,
+    )
+
+    registry.register(
         Tool(
             name="distinct",
             description=(
-                "Get the list of unique values for a field across a "
-                "dataset. Returns an array of distinct values with a "
-                "count. Useful for discovering all classes, categories, "
-                "or unique identifiers in a field."
+                "Get the list of unique values for a field "
+                "across a dataset. Returns an array of distinct "
+                "values with a count. Useful for discovering all "
+                "classes, categories, or unique identifiers in a "
+                "field."
             ),
             inputSchema={
                 "type": "object",
@@ -320,29 +342,33 @@ def get_aggregation_tools():
                     "field": {
                         "type": "string",
                         "description": (
-                            "Field path to get distinct values for "
-                            "(e.g., 'ground_truth.label')"
+                            "Field path to get distinct values "
+                            "for (e.g., 'ground_truth.label')"
                         ),
                     },
                     "view_stages": {
                         "type": "array",
                         "items": {"type": "object"},
                         "description": (
-                            "Optional list of serialized view stage "
-                            "dicts to pre-filter the dataset"
+                            "Optional list of serialized view "
+                            "stage dicts to pre-filter the dataset"
                         ),
                     },
                 },
                 "required": ["dataset_name", "field"],
             },
         ),
+        distinct,
+    )
+
+    registry.register(
         Tool(
             name="bounds",
             description=(
                 "Get the min and max values for a numeric field. "
                 "Returns {min, max}. Useful for understanding the "
-                "range of confidence scores, image dimensions, or any "
-                "numeric field."
+                "range of confidence scores, image dimensions, or "
+                "any numeric field."
             ),
             inputSchema={
                 "type": "object",
@@ -354,28 +380,34 @@ def get_aggregation_tools():
                     "field": {
                         "type": "string",
                         "description": (
-                            "Numeric field path "
-                            "(e.g., 'ground_truth.detections.confidence')"
+                            "Numeric field path (e.g., "
+                            "'ground_truth.detections"
+                            ".confidence')"
                         ),
                     },
                     "view_stages": {
                         "type": "array",
                         "items": {"type": "object"},
                         "description": (
-                            "Optional list of serialized view stage "
-                            "dicts to pre-filter the dataset"
+                            "Optional list of serialized view "
+                            "stage dicts to pre-filter the dataset"
                         ),
                     },
                 },
                 "required": ["dataset_name", "field"],
             },
         ),
+        compute_bounds,
+    )
+
+    registry.register(
         Tool(
             name="mean",
             description=(
-                "Compute the mean (average) of a numeric field across "
-                "all samples. Returns a single float. Useful for "
-                "average confidence, uniqueness scores, etc."
+                "Compute the mean (average) of a numeric field "
+                "across all samples. Returns a single float. "
+                "Useful for average confidence, uniqueness "
+                "scores, etc."
             ),
             inputSchema={
                 "type": "object",
@@ -392,19 +424,23 @@ def get_aggregation_tools():
                         "type": "array",
                         "items": {"type": "object"},
                         "description": (
-                            "Optional list of serialized view stage "
-                            "dicts to pre-filter the dataset"
+                            "Optional list of serialized view "
+                            "stage dicts to pre-filter the dataset"
                         ),
                     },
                 },
                 "required": ["dataset_name", "field"],
             },
         ),
+        compute_mean,
+    )
+
+    registry.register(
         Tool(
             name="sum",
             description=(
-                "Compute the sum of a numeric field across all samples. "
-                "Returns a single number."
+                "Compute the sum of a numeric field across all "
+                "samples. Returns a single number."
             ),
             inputSchema={
                 "type": "object",
@@ -421,19 +457,23 @@ def get_aggregation_tools():
                         "type": "array",
                         "items": {"type": "object"},
                         "description": (
-                            "Optional list of serialized view stage "
-                            "dicts to pre-filter the dataset"
+                            "Optional list of serialized view "
+                            "stage dicts to pre-filter the dataset"
                         ),
                     },
                 },
                 "required": ["dataset_name", "field"],
             },
         ),
+        compute_sum,
+    )
+
+    registry.register(
         Tool(
             name="std",
             description=(
-                "Compute the standard deviation of a numeric field "
-                "across all samples. Returns a single float."
+                "Compute the standard deviation of a numeric "
+                "field across all samples. Returns a single float."
             ),
             inputSchema={
                 "type": "object",
@@ -450,21 +490,26 @@ def get_aggregation_tools():
                         "type": "array",
                         "items": {"type": "object"},
                         "description": (
-                            "Optional list of serialized view stage "
-                            "dicts to pre-filter the dataset"
+                            "Optional list of serialized view "
+                            "stage dicts to pre-filter the dataset"
                         ),
                     },
                 },
                 "required": ["dataset_name", "field"],
             },
         ),
+        compute_std,
+    )
+
+    registry.register(
         Tool(
             name="histogram_values",
             description=(
-                "Compute a histogram of values for a numeric field. "
-                "Returns bin counts, bin edges, and the count of values "
-                "outside the range. Useful for visualizing distributions "
-                "of confidence scores, object sizes, etc."
+                "Compute a histogram of values for a numeric "
+                "field. Returns bin counts, bin edges, and the "
+                "count of values outside the range. Useful for "
+                "visualizing distributions of confidence scores, "
+                "object sizes, etc."
             ),
             inputSchema={
                 "type": "object",
@@ -480,7 +525,7 @@ def get_aggregation_tools():
                     "bins": {
                         "type": "integer",
                         "description": (
-                            "Number of histogram bins. Default is 50"
+                            "Number of histogram bins. " "Default is 50"
                         ),
                         "default": 50,
                     },
@@ -490,31 +535,36 @@ def get_aggregation_tools():
                         "minItems": 2,
                         "maxItems": 2,
                         "description": (
-                            "Optional [min, max] range for the histogram. "
-                            "Values outside this range are counted in "
-                            "'other'. If omitted, full range is used"
+                            "Optional [min, max] range for the "
+                            "histogram. Values outside this range "
+                            "are counted in 'other'. If omitted, "
+                            "full range is used"
                         ),
                     },
                     "view_stages": {
                         "type": "array",
                         "items": {"type": "object"},
                         "description": (
-                            "Optional list of serialized view stage "
-                            "dicts to pre-filter the dataset"
+                            "Optional list of serialized view "
+                            "stage dicts to pre-filter the dataset"
                         ),
                     },
                 },
                 "required": ["dataset_name", "field"],
             },
         ),
+        histogram_values,
+    )
+
+    registry.register(
         Tool(
             name="get_values",
             description=(
-                "Get the raw values of a field for all samples in a "
-                "dataset. Returns a list of values in sample order. "
-                "Useful for reading custom field data, scores, or "
-                "metadata. Capped at 10,000 samples by default to "
-                "avoid large responses."
+                "Get the raw values of a field for all samples "
+                "in a dataset. Returns a list of values in sample "
+                "order. Useful for reading custom field data, "
+                "scores, or metadata. Capped at 10,000 samples "
+                "by default to avoid large responses."
             ),
             inputSchema={
                 "type": "object",
@@ -534,8 +584,8 @@ def get_aggregation_tools():
                         "type": "array",
                         "items": {"type": "object"},
                         "description": (
-                            "Optional list of serialized view stage "
-                            "dicts to pre-filter the dataset"
+                            "Optional list of serialized view "
+                            "stage dicts to pre-filter the dataset"
                         ),
                     },
                     "limit": {
@@ -550,102 +600,5 @@ def get_aggregation_tools():
                 "required": ["dataset_name", "field"],
             },
         ),
-    ]
-
-
-_TOOL_NAMES = {
-    "count_values",
-    "distinct",
-    "bounds",
-    "mean",
-    "sum",
-    "std",
-    "histogram_values",
-    "get_values",
-}
-
-_TOOL_HANDLERS = {
-    "count_values": lambda a: count_values(
-        a["dataset_name"],
-        a["field"],
-        a.get("view_stages"),
-    ),
-    "distinct": lambda a: distinct(
-        a["dataset_name"],
-        a["field"],
-        a.get("view_stages"),
-    ),
-    "bounds": lambda a: compute_bounds(
-        a["dataset_name"],
-        a["field"],
-        a.get("view_stages"),
-    ),
-    "mean": lambda a: compute_mean(
-        a["dataset_name"],
-        a["field"],
-        a.get("view_stages"),
-    ),
-    "sum": lambda a: compute_sum(
-        a["dataset_name"],
-        a["field"],
-        a.get("view_stages"),
-    ),
-    "std": lambda a: compute_std(
-        a["dataset_name"],
-        a["field"],
-        a.get("view_stages"),
-    ),
-    "histogram_values": lambda a: histogram_values(
-        a["dataset_name"],
-        a["field"],
-        bins=a.get("bins", 50),
-        value_range=a.get("value_range"),
-        view_stages=a.get("view_stages"),
-    ),
-    "get_values": lambda a: get_values(
-        a["dataset_name"],
-        a["field"],
-        view_stages=a.get("view_stages"),
-        limit=a.get("limit", 10000),
-    ),
-}
-
-
-async def handle_tool_call(name, arguments):
-    """Handles aggregation tool calls.
-
-    Args:
-        name: the name of the tool
-        arguments: a dict of arguments for the tool
-
-    Returns:
-        a list of :class:`mcp.types.TextContent` instances
-    """
-    try:
-        if name not in _TOOL_NAMES:
-            result = format_response(
-                None, success=False, error=f"Unknown tool: {name}"
-            )
-        elif "dataset_name" not in arguments:
-            result = format_response(
-                None,
-                success=False,
-                error="dataset_name is required",
-            )
-        elif "field" not in arguments:
-            result = format_response(
-                None,
-                success=False,
-                error="field is required",
-            )
-        else:
-            result = _TOOL_HANDLERS[name](arguments)
-
-        return [TextContent(type="text", text=json.dumps(result, indent=2))]
-
-    except Exception as e:
-        logger.error("Error handling aggregation tool '%s': %s", name, e)
-        error_result = format_response(None, success=False, error=str(e))
-        return [
-            TextContent(type="text", text=json.dumps(error_result, indent=2))
-        ]
+        get_values,
+    )
