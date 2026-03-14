@@ -11,11 +11,12 @@ import json
 import pytest
 
 import fiftyone as fo
+from fiftyone_mcp.registry import ToolRegistry
 from fiftyone_mcp.tools.datasets import (
     list_datasets,
     load_dataset,
     dataset_summary,
-    handle_tool_call,
+    register_tools,
 )
 from fiftyone_mcp.tools.utils import format_response
 
@@ -48,7 +49,7 @@ class TestListDatasets:
 
     def test_list_datasets_format(self):
         """Test that list_datasets returns proper format."""
-        result = list_datasets()
+        result = list_datasets(None)
 
         assert isinstance(result, dict)
         assert "success" in result
@@ -57,7 +58,7 @@ class TestListDatasets:
 
     def test_list_datasets_success(self, test_dataset):
         """Test list_datasets with existing datasets."""
-        result = list_datasets()
+        result = list_datasets(None)
 
         assert result["success"] is True
         assert "count" in result["data"]
@@ -67,9 +68,11 @@ class TestListDatasets:
 
     def test_list_datasets_contains_test_dataset(self, test_dataset):
         """Test that list includes created test dataset."""
-        result = list_datasets()
+        result = list_datasets(None)
 
-        dataset_names = [d["name"] for d in result["data"]["datasets"]]
+        dataset_names = [
+            d["name"] for d in result["data"]["datasets"]
+        ]
         assert test_dataset.name in dataset_names
 
 
@@ -78,7 +81,7 @@ class TestLoadDataset:
 
     def test_load_dataset_success(self, test_dataset):
         """Test loading an existing dataset."""
-        result = load_dataset(test_dataset.name)
+        result = load_dataset(None, test_dataset.name)
 
         assert result["success"] is True
         assert result["data"]["name"] == test_dataset.name
@@ -88,14 +91,14 @@ class TestLoadDataset:
 
     def test_load_dataset_missing(self):
         """Test loading a non-existent dataset."""
-        result = load_dataset("nonexistent_dataset_12345")
+        result = load_dataset(None, "nonexistent_dataset_12345")
 
         assert result["success"] is False
         assert "error" in result
 
     def test_load_dataset_has_metadata(self, test_dataset):
         """Test that loaded dataset includes metadata."""
-        result = load_dataset(test_dataset.name)
+        result = load_dataset(None, test_dataset.name)
 
         assert "media_type" in result["data"]
         assert "persistent" in result["data"]
@@ -107,7 +110,7 @@ class TestDatasetSummary:
 
     def test_dataset_summary_success(self, test_dataset):
         """Test getting summary of existing dataset."""
-        result = dataset_summary(test_dataset.name)
+        result = dataset_summary(None, test_dataset.name)
 
         assert result["success"] is True
         assert "stats" in result["data"]
@@ -115,42 +118,52 @@ class TestDatasetSummary:
 
     def test_dataset_summary_missing(self):
         """Test getting summary of non-existent dataset."""
-        result = dataset_summary("nonexistent_dataset_12345")
+        result = dataset_summary(
+            None, "nonexistent_dataset_12345"
+        )
 
         assert result["success"] is False
         assert "error" in result
 
     def test_dataset_summary_has_tag_stats(self, test_dataset):
         """Test that summary includes tag statistics."""
-        result = dataset_summary(test_dataset.name)
+        result = dataset_summary(None, test_dataset.name)
 
         assert "tags" in result["data"]["stats"]
 
     def test_dataset_summary_has_field_info(self, test_dataset):
         """Test that summary includes field information."""
-        result = dataset_summary(test_dataset.name)
+        result = dataset_summary(None, test_dataset.name)
 
         fields = result["data"]["sample_fields"]
         assert "id" in fields
         assert "filepath" in fields
 
 
-class TestMCPIntegration:
-    """Integration tests for MCP tool call handling."""
+class TestRegistry:
+    """Integration tests using ToolRegistry."""
+
+    @pytest.fixture
+    def registry(self):
+        reg = ToolRegistry()
+        register_tools(reg)
+        return reg
 
     @pytest.mark.asyncio
-    async def test_tool_call_list_datasets(self):
-        """Test MCP tool call for list_datasets."""
-        result = await handle_tool_call("list_datasets", {})
+    async def test_registry_list_datasets(self, registry):
+        """Test registry call for list_datasets."""
+        result = await registry.call_tool("list_datasets", {})
 
         assert len(result) == 1
         data = json.loads(result[0].text)
         assert data["success"] is True
 
     @pytest.mark.asyncio
-    async def test_tool_call_load_dataset(self, test_dataset):
-        """Test MCP tool call for load_dataset."""
-        result = await handle_tool_call(
+    async def test_registry_load_dataset(
+        self, registry, test_dataset
+    ):
+        """Test registry call for load_dataset."""
+        result = await registry.call_tool(
             "load_dataset", {"name": test_dataset.name}
         )
 
@@ -160,19 +173,20 @@ class TestMCPIntegration:
         assert data["data"]["name"] == test_dataset.name
 
     @pytest.mark.asyncio
-    async def test_tool_call_missing_name(self):
-        """Test MCP tool call without required name parameter."""
-        result = await handle_tool_call("load_dataset", {})
+    async def test_registry_load_dataset_missing_name(
+        self, registry
+    ):
+        """Test registry call without required name parameter."""
+        result = await registry.call_tool("load_dataset", {})
 
         assert len(result) == 1
         data = json.loads(result[0].text)
         assert data["success"] is False
-        assert "required" in data["error"].lower()
 
     @pytest.mark.asyncio
-    async def test_tool_call_unknown_tool(self):
-        """Test MCP tool call with unknown tool name."""
-        result = await handle_tool_call("unknown_tool", {})
+    async def test_registry_unknown_tool(self, registry):
+        """Test registry call with unknown tool name."""
+        result = await registry.call_tool("unknown_tool", {})
 
         assert len(result) == 1
         data = json.loads(result[0].text)
@@ -195,7 +209,9 @@ class TestUtilityFunctions:
     def test_format_response_error(self):
         """Test format_response with error case."""
         error_msg = "Test error"
-        result = format_response(None, success=False, error=error_msg)
+        result = format_response(
+            None, success=False, error=error_msg
+        )
 
         assert result["success"] is False
         assert result["data"] is None

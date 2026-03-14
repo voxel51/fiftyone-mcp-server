@@ -7,11 +7,10 @@ Field schema tools for FiftyOne MCP server.
 """
 
 import importlib
-import json
 import logging
 
 import fiftyone as fo
-from mcp.types import Tool, TextContent
+from mcp.types import Tool
 
 from .utils import format_response
 
@@ -60,18 +59,14 @@ def _serialize_field(field):
     return info
 
 
-def get_field_schema(dataset_name, include_private=False):
-    """Gets the full field schema for a dataset with type information.
-
-    Unlike :func:`load_dataset`, which returns only field names, this
-    returns the complete type information for every field including
-    subfield types for ListFields and document types for
-    EmbeddedDocumentFields.
+def get_field_schema(ctx, dataset_name, include_private=False):
+    """Gets the full field schema for a dataset.
 
     Args:
+        ctx: an optional
+            :class:`fiftyone.operators.executor.ExecutionContext`
         dataset_name: the name of the dataset
         include_private (False): whether to include private fields
-            (fields whose names start with ``_``)
 
     Returns:
         a dict mapping field names to their schema information
@@ -94,12 +89,15 @@ def get_field_schema(dataset_name, include_private=False):
 
     except Exception as e:
         logger.error(
-            "Failed to get field schema for '%s': %s", dataset_name, e
+            "Failed to get field schema for '%s': %s",
+            dataset_name,
+            e,
         )
         return format_response(None, success=False, error=str(e))
 
 
 def add_sample_field(
+    ctx,
     dataset_name,
     field_name,
     field_type,
@@ -108,22 +106,16 @@ def add_sample_field(
 ):
     """Adds a new field with an explicit type to a dataset.
 
-    Unlike the ``add_dynamic_sample_fields`` operator, which
-    auto-detects types from existing data, this tool lets you
-    explicitly define the field type before adding any data.
-
     Args:
+        ctx: an optional
+            :class:`fiftyone.operators.executor.ExecutionContext`
         dataset_name: the name of the dataset
         field_name: the name of the new field
-        field_type: the field type string. One of: ``"StringField"``,
-            ``"IntField"``, ``"FloatField"``, ``"BooleanField"``,
-            ``"ListField"``, ``"EmbeddedDocumentField"``,
-            ``"DateTimeField"``, ``"GeoPointField"``
-        embedded_doc_type (None): for ``EmbeddedDocumentField``, the
-            fully-qualified class name of the embedded document type
-            (e.g., ``"fiftyone.core.labels.Detection"``)
-        subfield (None): for ``ListField``, the type string of the
-            list element field (e.g., ``"StringField"``)
+        field_type: the field type string
+        embedded_doc_type (None): for ``EmbeddedDocumentField``,
+            the fully-qualified class name
+        subfield (None): for ``ListField``, the type string of
+            the list element field
 
     Returns:
         a dict with the new field's schema entry
@@ -134,8 +126,8 @@ def add_sample_field(
                 None,
                 success=False,
                 error=(
-                    f"Unknown field type '{field_type}'. "
-                    f"Supported types: {sorted(_FIELD_TYPES)}"
+                    "Unknown field type '%s'. Supported types: %s"
+                    % (field_type, sorted(_FIELD_TYPES))
                 ),
             )
 
@@ -150,8 +142,9 @@ def add_sample_field(
                     None,
                     success=False,
                     error=(
-                        f"Unknown subfield type '{subfield}'. "
-                        f"Supported types: {sorted(_FIELD_TYPES)}"
+                        "Unknown subfield type '%s'. "
+                        "Supported types: %s"
+                        % (subfield, sorted(_FIELD_TYPES))
                     ),
                 )
             kwargs["subfield"] = _FIELD_TYPES[subfield]
@@ -167,8 +160,9 @@ def add_sample_field(
                         None,
                         success=False,
                         error=(
-                            f"Could not resolve embedded_doc_type "
-                            f"'{embedded_doc_type}': {exc}"
+                            "Could not resolve "
+                            "embedded_doc_type '%s': %s"
+                            % (embedded_doc_type, exc)
                         ),
                     )
             else:
@@ -176,8 +170,8 @@ def add_sample_field(
                     None,
                     success=False,
                     error=(
-                        "embedded_doc_type must be a fully-qualified "
-                        "class name (e.g., "
+                        "embedded_doc_type must be a "
+                        "fully-qualified class name (e.g., "
                         "'fiftyone.core.labels.Detection')"
                     ),
                 )
@@ -209,21 +203,22 @@ def add_sample_field(
         return format_response(None, success=False, error=str(e))
 
 
-def get_schema_tools():
-    """Gets the list of schema MCP tools.
+def register_tools(registry):
+    """Registers all schema tools with the registry.
 
-    Returns:
-        a list of :class:`mcp.types.Tool` instances
+    Args:
+        registry: a :class:`fiftyone_mcp.registry.ToolRegistry`
     """
-    return [
+    registry.register(
         Tool(
             name="get_field_schema",
             description=(
-                "Get the full field schema for a dataset with complete "
-                "type information. Returns field_name → {type, subfield, "
-                "embedded_doc_type, description, required, read_only} for "
-                "every field. More detailed than load_dataset, which only "
-                "returns field names."
+                "Get the full field schema for a dataset with "
+                "complete type information. Returns field_name "
+                "-> {type, subfield, embedded_doc_type, "
+                "description, required, read_only} for every "
+                "field. More detailed than load_dataset, which "
+                "only returns field names."
             ),
             inputSchema={
                 "type": "object",
@@ -235,8 +230,9 @@ def get_schema_tools():
                     "include_private": {
                         "type": "boolean",
                         "description": (
-                            "Whether to include private fields (fields "
-                            "starting with '_'). Default is false"
+                            "Whether to include private fields "
+                            "(fields starting with '_'). "
+                            "Default is false"
                         ),
                         "default": False,
                     },
@@ -244,16 +240,23 @@ def get_schema_tools():
                 "required": ["dataset_name"],
             },
         ),
+        get_field_schema,
+    )
+
+    registry.register(
         Tool(
             name="add_sample_field",
             description=(
-                "Add a new field with an explicit type to a dataset. "
-                "Use this to define a typed field before assigning values "
-                "with set_values. Unlike add_dynamic_sample_fields (which "
-                "auto-detects types), this requires you to specify the "
-                "type explicitly. Supported types: StringField, IntField, "
-                "FloatField, BooleanField, ListField, "
-                "EmbeddedDocumentField, DateTimeField, GeoPointField."
+                "Add a new field with an explicit type to a "
+                "dataset. Use this to define a typed field "
+                "before assigning values with set_values. "
+                "Unlike add_dynamic_sample_fields (which "
+                "auto-detects types), this requires you to "
+                "specify the type explicitly. Supported types: "
+                "StringField, IntField, FloatField, "
+                "BooleanField, ListField, "
+                "EmbeddedDocumentField, DateTimeField, "
+                "GeoPointField."
             ),
             inputSchema={
                 "type": "object",
@@ -273,98 +276,38 @@ def get_schema_tools():
                         "type": "string",
                         "enum": sorted(_FIELD_TYPES),
                         "description": (
-                            "The field type. One of: StringField, "
-                            "IntField, FloatField, BooleanField, "
-                            "ListField, EmbeddedDocumentField, "
+                            "The field type. One of: "
+                            "StringField, IntField, "
+                            "FloatField, BooleanField, "
+                            "ListField, "
+                            "EmbeddedDocumentField, "
                             "DateTimeField, GeoPointField"
                         ),
                     },
                     "embedded_doc_type": {
                         "type": "string",
                         "description": (
-                            "For EmbeddedDocumentField only: the "
-                            "fully-qualified class name of the embedded "
-                            "document type "
-                            "(e.g., 'fiftyone.core.labels.Detection')"
+                            "For EmbeddedDocumentField only: "
+                            "the fully-qualified class name "
+                            "(e.g., 'fiftyone.core.labels"
+                            ".Detection')"
                         ),
                     },
                     "subfield": {
                         "type": "string",
                         "description": (
-                            "For ListField only: the type string of the "
-                            "list element field (e.g., 'StringField')"
+                            "For ListField only: the type "
+                            "string of the list element field "
+                            "(e.g., 'StringField')"
                         ),
                     },
                 },
-                "required": ["dataset_name", "field_name", "field_type"],
+                "required": [
+                    "dataset_name",
+                    "field_name",
+                    "field_type",
+                ],
             },
         ),
-    ]
-
-
-_TOOL_NAMES = {
-    "get_field_schema",
-    "add_sample_field",
-}
-
-_REQUIRED_ARGS = {
-    "get_field_schema": ["dataset_name"],
-    "add_sample_field": ["dataset_name", "field_name", "field_type"],
-}
-
-_TOOL_HANDLERS = {
-    "get_field_schema": lambda a: get_field_schema(
-        a["dataset_name"],
-        include_private=a.get("include_private", False),
-    ),
-    "add_sample_field": lambda a: add_sample_field(
-        a["dataset_name"],
-        a["field_name"],
-        a["field_type"],
-        embedded_doc_type=a.get("embedded_doc_type"),
-        subfield=a.get("subfield"),
-    ),
-}
-
-
-async def handle_tool_call(name, arguments):
-    """Handles schema tool calls.
-
-    Args:
-        name: the name of the tool
-        arguments: a dict of arguments for the tool
-
-    Returns:
-        a list of :class:`mcp.types.TextContent` instances
-    """
-    try:
-        if name not in _TOOL_NAMES:
-            result = format_response(
-                None, success=False, error=f"Unknown tool: {name}"
-            )
-        else:
-            missing = [
-                arg for arg in _REQUIRED_ARGS[name] if arg not in arguments
-            ]
-            if missing:
-                result = format_response(
-                    None,
-                    success=False,
-                    error=(
-                        f"{missing[0]} is required"
-                        if len(missing) == 1
-                        else f"Required arguments missing: "
-                        f"{', '.join(missing)}"
-                    ),
-                )
-            else:
-                result = _TOOL_HANDLERS[name](arguments)
-
-        return [TextContent(type="text", text=json.dumps(result, indent=2))]
-
-    except Exception as e:
-        logger.error("Error handling schema tool '%s': %s", name, e)
-        error_result = format_response(None, success=False, error=str(e))
-        return [
-            TextContent(type="text", text=json.dumps(error_result, indent=2))
-        ]
+        add_sample_field,
+    )

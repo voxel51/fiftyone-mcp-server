@@ -6,11 +6,10 @@ Sample manipulation tools for FiftyOne MCP server.
 |
 """
 
-import json
 import logging
 
 import fiftyone as fo
-from mcp.types import Tool, TextContent
+from mcp.types import Tool
 
 from .utils import _get_view, format_response, safe_serialize
 
@@ -18,13 +17,15 @@ from .utils import _get_view, format_response, safe_serialize
 logger = logging.getLogger(__name__)
 
 
-def add_samples(dataset_name, samples):
+def add_samples(ctx, dataset_name, samples):
     """Adds new samples to a dataset.
 
     Args:
+        ctx: an optional
+            :class:`fiftyone.operators.executor.ExecutionContext`
         dataset_name: the name of the dataset
-        samples: a list of dicts, each with a ``filepath`` key and any
-            additional field values to set on the sample
+        samples: a list of dicts, each with a ``filepath`` key and
+            any additional field values to set on the sample
 
     Returns:
         a dict with the IDs of the added samples
@@ -40,7 +41,9 @@ def add_samples(dataset_name, samples):
                 return format_response(
                     None,
                     success=False,
-                    error=("Each sample dict must contain a 'filepath' key"),
+                    error=(
+                        "Each sample dict must contain a " "'filepath' key"
+                    ),
                 )
             fo_samples.append(fo.Sample(filepath=filepath, **d))
 
@@ -59,19 +62,23 @@ def add_samples(dataset_name, samples):
         return format_response(None, success=False, error=str(e))
 
 
-def set_values(dataset_name, field, values, key_field=None):
+def set_values(ctx, dataset_name, field, values, key_field=None):
     """Sets the values of a field across samples.
 
-    Accepts either a list of values (one per sample in default order)
-    or a dict mapping sample IDs to values for explicit assignment.
+    Accepts either a list of values (one per sample in default
+    order) or a dict mapping sample IDs to values for explicit
+    assignment.
 
     Args:
+        ctx: an optional
+            :class:`fiftyone.operators.executor.ExecutionContext`
         dataset_name: the name of the dataset
         field: the field path to set values for
         values: a list of values (one per sample) or a
-            ``{sample_id: value}`` dict for explicit ID-based assignment
-        key_field (None): when ``values`` is a list, the sample field
-            used as the key. Defaults to ``"id"``
+            ``{sample_id: value}`` dict for explicit ID-based
+            assignment
+        key_field (None): when ``values`` is a list, the sample
+            field used as the key. Defaults to ``"id"``
 
     Returns:
         a dict with the count of updated samples
@@ -108,14 +115,16 @@ def set_values(dataset_name, field, values, key_field=None):
         return format_response(None, success=False, error=str(e))
 
 
-def tag_samples(dataset_name, tags, view_stages=None, sample_ids=None):
+def tag_samples(ctx, dataset_name, tags, view_stages=None, sample_ids=None):
     """Adds tags to samples in a dataset.
 
     Args:
+        ctx: an optional
+            :class:`fiftyone.operators.executor.ExecutionContext`
         dataset_name: the name of the dataset
         tags: a list of tags to add
-        view_stages (None): an optional list of serialized view stage
-            dicts to select which samples to tag
+        view_stages (None): an optional list of serialized view
+            stage dicts to select which samples to tag
         sample_ids (None): an optional list of sample IDs to tag.
             Takes precedence over ``view_stages`` when provided
 
@@ -146,14 +155,16 @@ def tag_samples(dataset_name, tags, view_stages=None, sample_ids=None):
         return format_response(None, success=False, error=str(e))
 
 
-def untag_samples(dataset_name, tags, view_stages=None, sample_ids=None):
+def untag_samples(ctx, dataset_name, tags, view_stages=None, sample_ids=None):
     """Removes tags from samples in a dataset.
 
     Args:
+        ctx: an optional
+            :class:`fiftyone.operators.executor.ExecutionContext`
         dataset_name: the name of the dataset
         tags: a list of tags to remove
-        view_stages (None): an optional list of serialized view stage
-            dicts to select which samples to untag
+        view_stages (None): an optional list of serialized view
+            stage dicts to select which samples to untag
         sample_ids (None): an optional list of sample IDs to untag.
             Takes precedence over ``view_stages`` when provided
 
@@ -180,14 +191,20 @@ def untag_samples(dataset_name, tags, view_stages=None, sample_ids=None):
         )
 
     except Exception as e:
-        logger.error("Failed to untag samples in '%s': %s", dataset_name, e)
+        logger.error(
+            "Failed to untag samples in '%s': %s",
+            dataset_name,
+            e,
+        )
         return format_response(None, success=False, error=str(e))
 
 
-def count_sample_tags(dataset_name):
+def count_sample_tags(ctx, dataset_name):
     """Counts how many samples have each tag.
 
     Args:
+        ctx: an optional
+            :class:`fiftyone.operators.executor.ExecutionContext`
         dataset_name: the name of the dataset
 
     Returns:
@@ -207,27 +224,30 @@ def count_sample_tags(dataset_name):
 
     except Exception as e:
         logger.error(
-            "Failed to count sample tags in '%s': %s", dataset_name, e
+            "Failed to count sample tags in '%s': %s",
+            dataset_name,
+            e,
         )
         return format_response(None, success=False, error=str(e))
 
 
-def get_sample_tools():
-    """Gets the list of sample manipulation MCP tools.
+def register_tools(registry):
+    """Registers all sample tools with the registry.
 
-    Returns:
-        a list of :class:`mcp.types.Tool` instances
+    Args:
+        registry: a :class:`fiftyone_mcp.registry.ToolRegistry`
     """
-    return [
+    registry.register(
         Tool(
             name="add_samples",
             description=(
-                "Add new samples to an existing dataset. Each sample "
-                "requires a 'filepath' key and can include any additional "
-                "field values. Returns the IDs of the added samples. "
-                "Use this for programmatic sample creation from Python "
-                "dicts — use the import_samples operator for file/dir "
-                "imports instead."
+                "Add new samples to an existing dataset. Each "
+                "sample requires a 'filepath' key and can include "
+                "any additional field values. Returns the IDs of "
+                "the added samples. Use this for programmatic "
+                "sample creation from Python dicts — use the "
+                "import_samples operator for file/dir imports "
+                "instead."
             ),
             inputSchema={
                 "type": "object",
@@ -244,16 +264,17 @@ def get_sample_tools():
                                 "filepath": {
                                     "type": "string",
                                     "description": (
-                                        "Path to the sample media file"
+                                        "Path to the sample " "media file"
                                     ),
                                 }
                             },
                             "required": ["filepath"],
                         },
                         "description": (
-                            "List of sample dicts, each with 'filepath' "
-                            "and any extra field values "
-                            '(e.g., [{"filepath": "/path/img.jpg", '
+                            "List of sample dicts, each with "
+                            "'filepath' and any extra field "
+                            "values (e.g., "
+                            '[{"filepath": "/path/img.jpg", '
                             '"label": "cat"}])'
                         ),
                     },
@@ -261,16 +282,21 @@ def get_sample_tools():
                 "required": ["dataset_name", "samples"],
             },
         ),
+        add_samples,
+    )
+
+    registry.register(
         Tool(
             name="set_values",
             description=(
-                "Bulk-assign values to a field across multiple samples. "
-                "Accepts either a list of values (one per sample in "
-                "dataset order) or a {sample_id: value} dict for explicit "
-                "assignment. Use this when you need to write computed "
-                "scores, labels, or metadata back to the dataset. "
-                "Note: the edit_field_values operator does value remapping "
-                "(old→new), not bulk assignment."
+                "Bulk-assign values to a field across multiple "
+                "samples. Accepts either a list of values (one "
+                "per sample in dataset order) or a "
+                "{sample_id: value} dict for explicit assignment. "
+                "Use this when you need to write computed scores, "
+                "labels, or metadata back to the dataset. Note: "
+                "the edit_field_values operator does value "
+                "remapping (old->new), not bulk assignment."
             ),
             inputSchema={
                 "type": "object",
@@ -283,36 +309,45 @@ def get_sample_tools():
                         "type": "string",
                         "description": (
                             "Field path to write values to "
-                            "(e.g., 'my_score', 'predicted_label')"
+                            "(e.g., 'my_score', "
+                            "'predicted_label')"
                         ),
                     },
                     "values": {
                         "description": (
-                            "Either a list of values (one per sample) or "
-                            "a {sample_id: value} dict for explicit "
-                            "assignment by sample ID. The dict form is "
-                            "recommended when targeting specific samples"
+                            "Either a list of values (one per "
+                            "sample) or a {sample_id: value} "
+                            "dict for explicit assignment by "
+                            "sample ID. The dict form is "
+                            "recommended when targeting "
+                            "specific samples"
                         ),
                     },
                     "key_field": {
                         "type": "string",
                         "description": (
-                            "When values is a list, the sample field used "
-                            "as the key. Defaults to 'id'"
+                            "When values is a list, the sample "
+                            "field used as the key. Defaults "
+                            "to 'id'"
                         ),
                     },
                 },
                 "required": ["dataset_name", "field", "values"],
             },
         ),
+        set_values,
+    )
+
+    registry.register(
         Tool(
             name="tag_samples",
             description=(
-                "Add tags to samples in a dataset. Optionally filter "
-                "which samples to tag using view_stages or sample_ids. "
-                "Returns the count of samples that were tagged. Tags "
-                "can be used to mark subsets for review, training splits, "
-                "or any custom categorization."
+                "Add tags to samples in a dataset. Optionally "
+                "filter which samples to tag using view_stages "
+                "or sample_ids. Returns the count of samples "
+                "that were tagged. Tags can be used to mark "
+                "subsets for review, training splits, or any "
+                "custom categorization."
             ),
             inputSchema={
                 "type": "object",
@@ -324,34 +359,41 @@ def get_sample_tools():
                     "tags": {
                         "type": "array",
                         "items": {"type": "string"},
-                        "description": "List of tags to add to samples",
+                        "description": ("List of tags to add to samples"),
                     },
                     "view_stages": {
                         "type": "array",
                         "items": {"type": "object"},
                         "description": (
-                            "Optional list of serialized view stage dicts "
-                            "to select which samples to tag"
+                            "Optional list of serialized view "
+                            "stage dicts to select which "
+                            "samples to tag"
                         ),
                     },
                     "sample_ids": {
                         "type": "array",
                         "items": {"type": "string"},
                         "description": (
-                            "Optional list of specific sample IDs to tag. "
-                            "Takes precedence over view_stages"
+                            "Optional list of specific sample "
+                            "IDs to tag. Takes precedence over "
+                            "view_stages"
                         ),
                     },
                 },
                 "required": ["dataset_name", "tags"],
             },
         ),
+        tag_samples,
+    )
+
+    registry.register(
         Tool(
             name="untag_samples",
             description=(
-                "Remove tags from samples in a dataset. Optionally filter "
-                "which samples to untag using view_stages or sample_ids. "
-                "Returns the count of samples that were processed."
+                "Remove tags from samples in a dataset. "
+                "Optionally filter which samples to untag using "
+                "view_stages or sample_ids. Returns the count of "
+                "samples that were processed."
             ),
             inputSchema={
                 "type": "object",
@@ -369,28 +411,35 @@ def get_sample_tools():
                         "type": "array",
                         "items": {"type": "object"},
                         "description": (
-                            "Optional list of serialized view stage dicts "
-                            "to select which samples to untag"
+                            "Optional list of serialized view "
+                            "stage dicts to select which "
+                            "samples to untag"
                         ),
                     },
                     "sample_ids": {
                         "type": "array",
                         "items": {"type": "string"},
                         "description": (
-                            "Optional list of specific sample IDs to "
-                            "untag. Takes precedence over view_stages"
+                            "Optional list of specific sample "
+                            "IDs to untag. Takes precedence "
+                            "over view_stages"
                         ),
                     },
                 },
                 "required": ["dataset_name", "tags"],
             },
         ),
+        untag_samples,
+    )
+
+    registry.register(
         Tool(
             name="count_sample_tags",
             description=(
-                "Count how many samples have each tag in a dataset. "
-                "Returns a {tag: count} dict and total number of distinct "
-                "tags. Useful for understanding tag distributions before "
+                "Count how many samples have each tag in a "
+                "dataset. Returns a {tag: count} dict and total "
+                "number of distinct tags. Useful for "
+                "understanding tag distributions before "
                 "filtering or after tagging operations."
             ),
             inputSchema={
@@ -404,92 +453,5 @@ def get_sample_tools():
                 "required": ["dataset_name"],
             },
         ),
-    ]
-
-
-_TOOL_NAMES = {
-    "add_samples",
-    "set_values",
-    "tag_samples",
-    "untag_samples",
-    "count_sample_tags",
-}
-
-_TOOL_HANDLERS = {
-    "add_samples": lambda a: add_samples(
-        a["dataset_name"],
-        a["samples"],
-    ),
-    "set_values": lambda a: set_values(
-        a["dataset_name"],
-        a["field"],
-        a["values"],
-        key_field=a.get("key_field"),
-    ),
-    "tag_samples": lambda a: tag_samples(
-        a["dataset_name"],
-        a["tags"],
-        view_stages=a.get("view_stages"),
-        sample_ids=a.get("sample_ids"),
-    ),
-    "untag_samples": lambda a: untag_samples(
-        a["dataset_name"],
-        a["tags"],
-        view_stages=a.get("view_stages"),
-        sample_ids=a.get("sample_ids"),
-    ),
-    "count_sample_tags": lambda a: count_sample_tags(
-        a["dataset_name"],
-    ),
-}
-
-_REQUIRED_ARGS = {
-    "add_samples": ["dataset_name", "samples"],
-    "set_values": ["dataset_name", "field", "values"],
-    "tag_samples": ["dataset_name", "tags"],
-    "untag_samples": ["dataset_name", "tags"],
-    "count_sample_tags": ["dataset_name"],
-}
-
-
-async def handle_tool_call(name, arguments):
-    """Handles sample manipulation tool calls.
-
-    Args:
-        name: the name of the tool
-        arguments: a dict of arguments for the tool
-
-    Returns:
-        a list of :class:`mcp.types.TextContent` instances
-    """
-    try:
-        if name not in _TOOL_NAMES:
-            result = format_response(
-                None, success=False, error=f"Unknown tool: {name}"
-            )
-        else:
-            missing = [
-                arg for arg in _REQUIRED_ARGS[name] if arg not in arguments
-            ]
-            if missing:
-                result = format_response(
-                    None,
-                    success=False,
-                    error=(
-                        f"{missing[0]} is required"
-                        if len(missing) == 1
-                        else f"Required arguments missing: "
-                        f"{', '.join(missing)}"
-                    ),
-                )
-            else:
-                result = _TOOL_HANDLERS[name](arguments)
-
-        return [TextContent(type="text", text=json.dumps(result, indent=2))]
-
-    except Exception as e:
-        logger.error("Error handling sample tool '%s': %s", name, e)
-        error_result = format_response(None, success=False, error=str(e))
-        return [
-            TextContent(type="text", text=json.dumps(error_result, indent=2))
-        ]
+        count_sample_tags,
+    )

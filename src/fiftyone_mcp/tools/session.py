@@ -1,84 +1,63 @@
 """
 Session management tools for FiftyOne MCP server.
 
+App-state tools (``set_view``, ``clear_view``) route through
+``ctx.ops`` so that any connected browser receives the update.
+When no execution context is available (stdio mode), these tools
+return an error — ``launch_app`` is the bootstrap entry point.
+
 | Copyright 2017-2026, Voxel51, Inc.
 | `voxel51.com <https://voxel51.com/>`_
 |
 """
 
-import json
 import logging
 
-from mcp.types import TextContent, Tool
-
 import fiftyone as fo
-import fiftyone.core.session.session as _fo_session_module
 from fiftyone import ViewField as F
+from mcp.types import Tool
 
 from .utils import format_response
+from .view_builder import build_view
 
 
 logger = logging.getLogger(__name__)
 
-_active_session = None
 
-
-def _ensure_session():
-    """Returns the active session, reusing an existing one when possible.
-
-    Checks ``_active_session``, then FiftyOne's global session
-    (``fiftyone.core.session.session._session``), and finally falls
-    back to ``fo.launch_app()`` for standalone/subprocess usage.
-
-    Returns:
-        a :class:`fiftyone.core.session.Session`, or ``None``
-    """
-    global _active_session
-
-    if _active_session is not None:
-        return _active_session
-
-    if _fo_session_module._session is not None:
-        _active_session = _fo_session_module._session
-        return _active_session
-
-    try:
-        port = fo.config.default_app_port or 5151
-        _active_session = fo.launch_app(port=port)
-    except Exception as e:
-        logger.warning("Could not start FiftyOne session: %s", e)
-
-    return _active_session
-
-
-def launch_app(dataset_name=None, port=None):
+def launch_app(ctx, dataset_name=None, port=None):
     """Launches the FiftyOne App.
 
+    This is a bootstrapping tool — it starts a local App server
+    so that subsequent ``set_view`` / ``clear_view`` calls can
+    reach a browser.
+
     Args:
-        dataset_name (None): optional dataset name to load in the app
+        ctx: an optional
+            :class:`fiftyone.operators.executor.ExecutionContext`
+        dataset_name (None): optional dataset name to load
         port (None): optional port number for the app server
 
     Returns:
         a dict with success status and session info
     """
-    global _active_session
-
     try:
         dataset = None
         if dataset_name:
             dataset = fo.load_dataset(dataset_name)
 
         session = fo.launch_app(dataset=dataset, port=port)
-        _active_session = session
 
         session_info = {
-            "url": session.url if hasattr(session, "url") else None,
+            "url": (session.url if hasattr(session, "url") else None),
             "dataset": dataset_name,
             "port": port,
         }
 
         return format_response(
-            {"message": "FiftyOne App launched successfully", **session_info},
+            {
+                "message": "FiftyOne App launched successfully",
+                **session_info,
+            },
             success=True,
         )
     except Exception as e:
@@ -86,49 +65,47 @@ def launch_app(dataset_name=None, port=None):
         return format_response(None, success=False, error=str(e))
 
 
-def close_app():
-    """Closes the active FiftyOne App session.
+def get_session_info(ctx):
+    """Gets information about the current state.
+
+    When an execution context is available, reads dataset and view
+    info from it. Otherwise returns a minimal status.
+
+    Args:
+        ctx: an optional
+            :class:`fiftyone.operators.executor.ExecutionContext`
 
     Returns:
-        a dict with success status
+        a dict with session details
     """
-    global _active_session
-
-    try:
-        fo.close_app()
-        _active_session = None
-
+    if ctx is None:
         return format_response(
-            {"message": "FiftyOne App closed successfully"}, success=True
-        )
-    except Exception as e:
-        logger.error("Error closing FiftyOne App: %s", e)
-        return format_response(None, success=False, error=str(e))
-
-
-def get_session_info():
-    """Gets information about the active FiftyOne App session.
-
-    Returns:
-        a dict with success status and session details
-    """
-    session = _ensure_session()
-
-    if session is None:
-        return format_response(
-            {"active": False, "message": "No active session"}, success=True
+            {
+                "active": False,
+                "message": (
+                    "No execution context. Use launch_app to "
+                    "start the App, or call via the "
+                    "MCPToolExecutor operator."
+                ),
+            },
+            success=True,
         )
 
     try:
-        view = session.view
+        dataset = getattr(ctx, "dataset", None)
+        view = getattr(ctx, "view", None)
+
         info = {
             "active": True,
-            "url": session.url if hasattr(session, "url") else None,
-            "dataset": (session.dataset.name if session.dataset else None),
+            "dataset": (dataset.name if dataset is not None else None),
             "view": {
-                "name": view.name if view else None,
-                "num_samples": len(view) if view else None,
-                "stages": len(view.stages) if view else 0,
+                "name": (view.name if view is not None else None),
+                "num_samples": (len(view) if view is not None else None),
+                "stages": (
+                    len(view._stages)
+                    if view is not None and hasattr(view, "_stages")
+                    else 0
+                ),
             },
         }
 
@@ -139,53 +116,88 @@ def get_session_info():
 
 
 def set_view(
+    ctx,
+    stages=None,
+    view_name=None,
     filters=None,
     match=None,
     exists=None,
     tags=None,
     sample_ids=None,
-    view_name=None,
 ):
-    """Sets a filtered view in the active FiftyOne App session.
+    """Sets a filtered view in the FiftyOne App.
+
+    Requires an execution context with ``ctx.ops`` to push the
+    view to a connected browser. Supports three modes:
+
+    1. **Dynamic stages** (``stages``): Build a view from
+       stage specifications using the view builder.
+    2. **Saved view** (``view_name``): Load a named saved view.
+    3. **Convenience params** (``filters``, ``match``, etc.):
+       Simple filtering shortcuts.
 
     Args:
-        filters (None): a dict mapping field names to values to match
-        match (None): a raw match expression dict for complex queries
-        exists (None): a field name or list of field names that must exist
+        ctx: an
+            :class:`fiftyone.operators.executor.ExecutionContext`
+        stages (None): a list of stage dicts for the view builder
+        view_name (None): the name of a saved view to load
+        filters (None): a dict mapping field names to values
+        match (None): a raw match expression dict
+        exists (None): a field name or list of field names
         tags (None): a tag or list of tags to match
         sample_ids (None): a list of sample IDs to select
-        view_name (None): the name of a saved view to load
 
     Returns:
         a dict with view info
     """
-    session = _ensure_session()
-
-    if session is None:
+    if ctx is None or not hasattr(ctx, "ops"):
         return format_response(
-            None, success=False, error="No active session available."
+            None,
+            success=False,
+            error=(
+                "set_view requires an execution context with "
+                "ctx.ops. Call via the MCPToolExecutor operator."
+            ),
         )
 
     try:
-        dataset = session.dataset
+        dataset = ctx.dataset
         if dataset is None:
             return format_response(
-                None, success=False, error="No dataset loaded in session."
+                None,
+                success=False,
+                error="No dataset in execution context.",
             )
 
+        # Dynamic stages path
+        if stages:
+            view = build_view(dataset, stages)
+            ctx.ops.set_view(view=view)
+            return format_response(
+                {
+                    "num_samples": len(view),
+                    "stages": len(stages),
+                }
+            )
+
+        # Saved view path
         if view_name:
             if view_name not in dataset.list_saved_views():
                 return format_response(
                     None,
                     success=False,
-                    error="Saved view '%s' not found." % view_name,
+                    error=("Saved view '%s' not found." % view_name),
                 )
             view = dataset.load_saved_view(view_name)
-            session.view = view
+            ctx.ops.set_view(view=view)
             return format_response(
-                {"view_name": view_name, "num_samples": len(view)}
+                {
+                    "view_name": view_name,
+                    "num_samples": len(view),
+                }
             )
 
+        # Convenience params path
         view = dataset.view()
 
         if filters:
@@ -207,10 +219,13 @@ def set_view(
         if sample_ids:
             view = view.select(sample_ids)
 
-        session.view = view
+        ctx.ops.set_view(view=view)
 
         return format_response(
-            {"num_samples": len(view), "stages": len(view.stages)}
+            {
+                "num_samples": len(view),
+                "stages": len(view._stages),
+            }
         )
 
     except Exception as e:
@@ -218,75 +233,145 @@ def set_view(
         return format_response(None, success=False, error=str(e))
 
 
-def clear_view():
-    """Clears the current view from the session.
+def clear_view(ctx):
+    """Clears the current view via ``ctx.ops.clear_view()``.
+
+    Args:
+        ctx: an
+            :class:`fiftyone.operators.executor.ExecutionContext`
 
     Returns:
         a dict with success status
     """
-    session = _ensure_session()
-
-    if session is None:
+    if ctx is None or not hasattr(ctx, "ops"):
         return format_response(
-            None, success=False, error="No active session available."
+            None,
+            success=False,
+            error=(
+                "clear_view requires an execution context "
+                "with ctx.ops. Call via the MCPToolExecutor "
+                "operator."
+            ),
         )
 
     try:
-        session.clear_view()
+        ctx.ops.clear_view()
         return format_response({"message": "View cleared"})
     except Exception as e:
         logger.error("Error clearing view: %s", e)
         return format_response(None, success=False, error=str(e))
 
 
-def get_session_tools():
-    """Returns the list of session management MCP tools.
+def register_tools(registry):
+    """Registers all session tools with the registry.
 
-    Returns:
-        list of :class:`mcp.types.Tool`
+    Args:
+        registry: a :class:`fiftyone_mcp.registry.ToolRegistry`
     """
-    return [
+    registry.register(
         Tool(
             name="launch_app",
-            description="Launches the FiftyOne App server. Required for executing delegated operators that need background execution (e.g., brain operators like find_near_duplicates).",
+            description=(
+                "Launches the FiftyOne App server. Required "
+                "for executing delegated operators that need "
+                "background execution (e.g., brain operators "
+                "like find_near_duplicates)."
+            ),
             inputSchema={
                 "type": "object",
                 "properties": {
                     "dataset_name": {
                         "type": "string",
-                        "description": "Optional dataset name to load in the app",
+                        "description": (
+                            "Optional dataset name to load " "in the app"
+                        ),
                     },
                     "port": {
                         "type": "integer",
-                        "description": "Optional port number for the app server. If not specified, uses default port",
+                        "description": (
+                            "Optional port number for the " "app server"
+                        ),
                     },
                 },
             },
         ),
-        Tool(
-            name="close_app",
-            description="Closes the active FiftyOne App session and stops the server.",
-            inputSchema={"type": "object", "properties": {}},
-        ),
+        launch_app,
+    )
+
+    registry.register(
         Tool(
             name="get_session_info",
-            description="Gets information about the current FiftyOne App session, including whether it's active and what dataset is loaded.",
+            description=(
+                "Gets information about the current FiftyOne "
+                "App session, including whether it's active "
+                "and what dataset is loaded."
+            ),
             inputSchema={"type": "object", "properties": {}},
         ),
+        get_session_info,
+    )
+
+    registry.register(
         Tool(
             name="set_view",
-            description="Sets a filtered view in the FiftyOne App. Use this to filter samples by field values, tags, existence of fields, or load saved views. The view updates immediately in the App UI.",
+            description=(
+                "Sets a filtered view in the FiftyOne App. "
+                "Supports dynamic stage-based views "
+                "(Match, FilterLabels, SortBy, Limit, etc. "
+                "with F() expressions), saved views, or "
+                "simple convenience filters. The view updates "
+                "immediately in the App UI. Requires an "
+                "execution context (call via MCPToolExecutor)."
+            ),
             inputSchema={
                 "type": "object",
                 "properties": {
+                    "stages": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "type": {
+                                    "type": "string",
+                                    "description": (
+                                        "Stage type: Match, "
+                                        "FilterLabels, "
+                                        "MatchLabels, "
+                                        "MatchTags, SortBy, "
+                                        "Limit, Skip, Take, "
+                                        "Exists, Select, "
+                                        "SelectFields, "
+                                        "ExcludeFields, etc."
+                                    ),
+                                },
+                            },
+                            "required": ["type"],
+                        },
+                        "description": (
+                            "List of view stage specs. Each "
+                            "has a 'type' and type-specific "
+                            "params. Filter expressions use "
+                            "F() syntax, e.g. "
+                            "'F(\"confidence\") > 0.5'"
+                        ),
+                    },
+                    "view_name": {
+                        "type": "string",
+                        "description": ("Name of a saved view to load"),
+                    },
                     "filters": {
                         "type": "object",
-                        "description": 'Dict mapping field names to values to match exactly (e.g., {"near_dup_id": 1})',
+                        "description": (
+                            "Dict mapping field names to "
+                            "values to match exactly"
+                        ),
                     },
                     "exists": {
                         "type": "array",
                         "items": {"type": "string"},
-                        "description": "Field name(s) that must have a non-None value",
+                        "description": (
+                            "Field name(s) that must have a " "non-None value"
+                        ),
                     },
                     "tags": {
                         "type": "array",
@@ -296,56 +381,23 @@ def get_session_tools():
                     "sample_ids": {
                         "type": "array",
                         "items": {"type": "string"},
-                        "description": "Specific sample IDs to select",
-                    },
-                    "view_name": {
-                        "type": "string",
-                        "description": "Name of a saved view to load",
+                        "description": ("Specific sample IDs to select"),
                     },
                 },
             },
         ),
+        set_view,
+    )
+
+    registry.register(
         Tool(
             name="clear_view",
-            description="Clears the current view from the session, showing all samples.",
+            description=(
+                "Clears the current view from the session, "
+                "showing all samples. Requires an execution "
+                "context (call via MCPToolExecutor)."
+            ),
             inputSchema={"type": "object", "properties": {}},
         ),
-    ]
-
-
-async def handle_tool_call(name, arguments):
-    """Handles session management tool calls.
-
-    Args:
-        name: the tool name
-        arguments: dict of arguments for the tool
-
-    Returns:
-        list of TextContent with the result
-    """
-    if name == "launch_app":
-        result = launch_app(
-            dataset_name=arguments.get("dataset_name"),
-            port=arguments.get("port"),
-        )
-    elif name == "close_app":
-        result = close_app()
-    elif name == "get_session_info":
-        result = get_session_info()
-    elif name == "set_view":
-        result = set_view(
-            filters=arguments.get("filters"),
-            match=arguments.get("match"),
-            exists=arguments.get("exists"),
-            tags=arguments.get("tags"),
-            sample_ids=arguments.get("sample_ids"),
-            view_name=arguments.get("view_name"),
-        )
-    elif name == "clear_view":
-        result = clear_view()
-    else:
-        result = format_response(
-            None, success=False, error=f"Unknown tool: {name}"
-        )
-
-    return [TextContent(type="text", text=json.dumps(result, indent=2))]
+        clear_view,
+    )

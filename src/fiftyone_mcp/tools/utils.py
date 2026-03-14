@@ -8,7 +8,6 @@ Utility functions for FiftyOne MCP tools.
 
 import logging
 
-import fiftyone as fo
 import fiftyone.core.view as fov
 
 
@@ -87,22 +86,6 @@ def safe_serialize(obj):
         return safe_serialize(obj.__dict__)
 
     return str(obj)
-
-
-def get_dataset_safe(name):
-    """Safely loads a FiftyOne dataset by name.
-
-    Args:
-        name: the name of the dataset
-
-    Returns:
-        a :class:`fiftyone.core.dataset.Dataset`, or None
-    """
-    try:
-        return fo.load_dataset(name)
-    except Exception as e:
-        logger.warning("Failed to load dataset '%s': %s", name, e)
-        return None
 
 
 def dataset_to_summary(dataset):

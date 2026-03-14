@@ -6,11 +6,10 @@ App config management tools for FiftyOne MCP server.
 |
 """
 
-import json
 import logging
 
 import fiftyone as fo
-from mcp.types import Tool, TextContent
+from mcp.types import Tool
 
 from .utils import format_response
 
@@ -22,7 +21,8 @@ def _serialize_color_scheme(cs):
     """Serializes a ColorScheme to a JSON-compatible dict.
 
     Args:
-        cs: a :class:`fiftyone.core.odm.dataset.ColorScheme`, or None
+        cs: a :class:`fiftyone.core.odm.dataset.ColorScheme`,
+            or None
 
     Returns:
         a dict, or None
@@ -32,7 +32,7 @@ def _serialize_color_scheme(cs):
 
     return {
         "color_by": cs.color_by,
-        "color_pool": list(cs.color_pool) if cs.color_pool else None,
+        "color_pool": (list(cs.color_pool) if cs.color_pool else None),
         "fields": list(cs.fields) if cs.fields else None,
         "opacity": cs.opacity,
         "multicolor_keypoints": cs.multicolor_keypoints,
@@ -41,10 +41,11 @@ def _serialize_color_scheme(cs):
 
 
 def _serialize_active_fields(af):
-    """Serializes an ActiveFields instance to a JSON-compatible dict.
+    """Serializes an ActiveFields instance to a dict.
 
     Args:
-        af: a :class:`fiftyone.core.odm.dataset.ActiveFields`, or None
+        af: a :class:`fiftyone.core.odm.dataset.ActiveFields`,
+            or None
 
     Returns:
         a dict, or None
@@ -59,7 +60,7 @@ def _serialize_active_fields(af):
 
 
 def _serialize_sidebar_group(sg):
-    """Serializes a SidebarGroupDocument to a JSON-compatible dict.
+    """Serializes a SidebarGroupDocument to a dict.
 
     Args:
         sg: a :class:`fiftyone.core.odm.dataset.SidebarGroupDocument`
@@ -75,10 +76,11 @@ def _serialize_sidebar_group(sg):
 
 
 def _serialize_app_config(ac):
-    """Serializes a DatasetAppConfig to a JSON-compatible dict.
+    """Serializes a DatasetAppConfig to a dict.
 
     Args:
-        ac: a :class:`fiftyone.core.odm.dataset.DatasetAppConfig`, or None
+        ac: a :class:`fiftyone.core.odm.dataset.DatasetAppConfig`,
+            or None
 
     Returns:
         a dict
@@ -89,7 +91,7 @@ def _serialize_app_config(ac):
     return {
         "grid_media_field": ac.grid_media_field,
         "modal_media_field": ac.modal_media_field,
-        "media_fields": list(ac.media_fields) if ac.media_fields else None,
+        "media_fields": (list(ac.media_fields) if ac.media_fields else None),
         "color_scheme": _serialize_color_scheme(ac.color_scheme),
         "sidebar_groups": (
             [_serialize_sidebar_group(sg) for sg in ac.sidebar_groups]
@@ -100,10 +102,12 @@ def _serialize_app_config(ac):
     }
 
 
-def get_app_config(dataset_name):
+def get_app_config(ctx, dataset_name):
     """Returns the full app config for a dataset.
 
     Args:
+        ctx: an optional
+            :class:`fiftyone.operators.executor.ExecutionContext`
         dataset_name: the name of the dataset
 
     Returns:
@@ -118,14 +122,20 @@ def get_app_config(dataset_name):
             }
         )
     except Exception as e:
-        logger.error("Failed to get app config for '%s': %s", dataset_name, e)
+        logger.error(
+            "Failed to get app config for '%s': %s",
+            dataset_name,
+            e,
+        )
         return format_response(None, success=False, error=str(e))
 
 
-def get_color_scheme(dataset_name):
+def get_color_scheme(ctx, dataset_name):
     """Returns the color scheme config for a dataset.
 
     Args:
+        ctx: an optional
+            :class:`fiftyone.operators.executor.ExecutionContext`
         dataset_name: the name of the dataset
 
     Returns:
@@ -143,12 +153,15 @@ def get_color_scheme(dataset_name):
         )
     except Exception as e:
         logger.error(
-            "Failed to get color scheme for '%s': %s", dataset_name, e
+            "Failed to get color scheme for '%s': %s",
+            dataset_name,
+            e,
         )
         return format_response(None, success=False, error=str(e))
 
 
 def set_color_scheme(
+    ctx,
     dataset_name,
     color_by=None,
     color_pool=None,
@@ -156,17 +169,13 @@ def set_color_scheme(
 ):
     """Sets the color scheme for a dataset.
 
-    Writes the color scheme to the database via ``dataset.save()``.
-
     Args:
+        ctx: an optional
+            :class:`fiftyone.operators.executor.ExecutionContext`
         dataset_name: the name of the dataset
-        color_by (None): how to color annotations. One of ``"field"``,
-            ``"value"``, ``"instance"``, or None to use the default
-        color_pool (None): a list of hex color strings to use as the
-            color pool (e.g., ``["#FF0000", "#00FF00"]``)
-        fields (None): a list of per-field color config dicts. Each dict
-            may contain ``path``, ``fieldColor``, ``colorByAttribute``,
-            and ``valueColors``
+        color_by (None): how to color annotations
+        color_pool (None): a list of hex color strings
+        fields (None): a list of per-field color config dicts
 
     Returns:
         a dict with the updated color scheme
@@ -189,15 +198,19 @@ def set_color_scheme(
         )
     except Exception as e:
         logger.error(
-            "Failed to set color scheme for '%s': %s", dataset_name, e
+            "Failed to set color scheme for '%s': %s",
+            dataset_name,
+            e,
         )
         return format_response(None, success=False, error=str(e))
 
 
-def get_sidebar_groups(dataset_name):
+def get_sidebar_groups(ctx, dataset_name):
     """Returns the sidebar group configuration for a dataset.
 
     Args:
+        ctx: an optional
+            :class:`fiftyone.operators.executor.ExecutionContext`
         dataset_name: the name of the dataset
 
     Returns:
@@ -218,21 +231,21 @@ def get_sidebar_groups(dataset_name):
         )
     except Exception as e:
         logger.error(
-            "Failed to get sidebar groups for '%s': %s", dataset_name, e
+            "Failed to get sidebar groups for '%s': %s",
+            dataset_name,
+            e,
         )
         return format_response(None, success=False, error=str(e))
 
 
-def set_sidebar_groups(dataset_name, groups):
+def set_sidebar_groups(ctx, dataset_name, groups):
     """Replaces the sidebar group configuration for a dataset.
 
-    Writes the new groups to the database via ``dataset.save()``.
-
     Args:
+        ctx: an optional
+            :class:`fiftyone.operators.executor.ExecutionContext`
         dataset_name: the name of the dataset
-        groups: a list of dicts with keys ``name`` (str, required),
-            ``paths`` (list of str, optional), and ``expanded``
-            (bool, optional)
+        groups: a list of group config dicts
 
     Returns:
         a dict with the updated sidebar groups
@@ -259,21 +272,22 @@ def set_sidebar_groups(dataset_name, groups):
         )
     except Exception as e:
         logger.error(
-            "Failed to set sidebar groups for '%s': %s", dataset_name, e
+            "Failed to set sidebar groups for '%s': %s",
+            dataset_name,
+            e,
         )
         return format_response(None, success=False, error=str(e))
 
 
-def set_active_fields(dataset_name, paths, exclude=False):
+def set_active_fields(ctx, dataset_name, paths, exclude=False):
     """Controls which fields are visible in the App sidebar.
 
-    Writes the active fields config to the database via ``dataset.save()``.
-
     Args:
+        ctx: an optional
+            :class:`fiftyone.operators.executor.ExecutionContext`
         dataset_name: the name of the dataset
         paths: a list of field path strings
-        exclude (False): if True, hide the listed paths; if False, show
-            only the listed paths
+        exclude (False): if True, hide the listed paths
 
     Returns:
         a dict with the updated active fields config
@@ -295,24 +309,26 @@ def set_active_fields(dataset_name, paths, exclude=False):
         )
     except Exception as e:
         logger.error(
-            "Failed to set active fields for '%s': %s", dataset_name, e
+            "Failed to set active fields for '%s': %s",
+            dataset_name,
+            e,
         )
         return format_response(None, success=False, error=str(e))
 
 
-def get_app_config_tools():
-    """Gets the list of app config MCP tools.
+def register_tools(registry):
+    """Registers all app config tools with the registry.
 
-    Returns:
-        a list of :class:`mcp.types.Tool` instances
+    Args:
+        registry: a :class:`fiftyone_mcp.registry.ToolRegistry`
     """
-    return [
+    registry.register(
         Tool(
             name="get_app_config",
             description=(
-                "Get the full app config for a dataset including color "
-                "scheme, sidebar groups, active fields, and media field "
-                "settings."
+                "Get the full app config for a dataset "
+                "including color scheme, sidebar groups, "
+                "active fields, and media field settings."
             ),
             inputSchema={
                 "type": "object",
@@ -325,12 +341,16 @@ def get_app_config_tools():
                 "required": ["dataset_name"],
             },
         ),
+        get_app_config,
+    )
+
+    registry.register(
         Tool(
             name="get_color_scheme",
             description=(
-                "Get the color scheme configuration for a dataset. "
-                "Returns color_by mode, color pool, and per-field "
-                "color settings."
+                "Get the color scheme configuration for a "
+                "dataset. Returns color_by mode, color pool, "
+                "and per-field color settings."
             ),
             inputSchema={
                 "type": "object",
@@ -343,12 +363,17 @@ def get_app_config_tools():
                 "required": ["dataset_name"],
             },
         ),
+        get_color_scheme,
+    )
+
+    registry.register(
         Tool(
             name="set_color_scheme",
             description=(
-                "Set the color scheme for a dataset. Persists to the "
-                "database. Supports setting color_by mode, a shared "
-                "color pool, and per-field color overrides."
+                "Set the color scheme for a dataset. Persists "
+                "to the database. Supports setting color_by "
+                "mode, a shared color pool, and per-field "
+                "color overrides."
             ),
             inputSchema={
                 "type": "object",
@@ -359,39 +384,37 @@ def get_app_config_tools():
                     },
                     "color_by": {
                         "type": "string",
-                        "enum": ["field", "value", "instance"],
-                        "description": (
-                            "How to color annotations. One of 'field', "
-                            "'value', or 'instance'"
-                        ),
+                        "enum": [
+                            "field",
+                            "value",
+                            "instance",
+                        ],
+                        "description": ("How to color annotations"),
                     },
                     "color_pool": {
                         "type": "array",
                         "items": {"type": "string"},
-                        "description": (
-                            "List of hex color strings to use as the "
-                            "color pool (e.g., ['#FF0000', '#00FF00'])"
-                        ),
+                        "description": ("List of hex color strings"),
                     },
                     "fields": {
                         "type": "array",
                         "items": {"type": "object"},
-                        "description": (
-                            "Per-field color config dicts. Each dict may "
-                            "contain: path, fieldColor, colorByAttribute, "
-                            "valueColors (list of {value, color} dicts)"
-                        ),
+                        "description": ("Per-field color config dicts"),
                     },
                 },
                 "required": ["dataset_name"],
             },
         ),
+        set_color_scheme,
+    )
+
+    registry.register(
         Tool(
             name="get_sidebar_groups",
             description=(
-                "Get the sidebar group configuration for a dataset. "
-                "Returns the list of groups with their field paths and "
-                "expanded state."
+                "Get the sidebar group configuration for a "
+                "dataset. Returns the list of groups with "
+                "their field paths and expanded state."
             ),
             inputSchema={
                 "type": "object",
@@ -404,12 +427,17 @@ def get_app_config_tools():
                 "required": ["dataset_name"],
             },
         ),
+        get_sidebar_groups,
+    )
+
+    registry.register(
         Tool(
             name="set_sidebar_groups",
             description=(
-                "Replace the sidebar group configuration for a dataset. "
-                "Persists to the database. Each group has a name, a list "
-                "of field paths, and an optional expanded flag."
+                "Replace the sidebar group configuration for "
+                "a dataset. Persists to the database. Each "
+                "group has a name, a list of field paths, and "
+                "an optional expanded flag."
             ),
             inputSchema={
                 "type": "object",
@@ -425,36 +453,41 @@ def get_app_config_tools():
                             "properties": {
                                 "name": {
                                     "type": "string",
-                                    "description": "Group name",
+                                    "description": ("Group name"),
                                 },
                                 "paths": {
                                     "type": "array",
                                     "items": {"type": "string"},
-                                    "description": "Field paths in this group",
+                                    "description": (
+                                        "Field paths in " "this group"
+                                    ),
                                 },
                                 "expanded": {
                                     "type": "boolean",
                                     "description": (
-                                        "Whether this group is expanded "
-                                        "by default"
+                                        "Whether expanded " "by default"
                                     ),
                                 },
                             },
                             "required": ["name"],
                         },
-                        "description": "List of sidebar group definitions",
+                        "description": ("List of sidebar group definitions"),
                     },
                 },
                 "required": ["dataset_name", "groups"],
             },
         ),
+        set_sidebar_groups,
+    )
+
+    registry.register(
         Tool(
             name="set_active_fields",
             description=(
-                "Control which fields are visible in the App sidebar. "
-                "Persists to the database. Use exclude=false (default) "
-                "to show only the listed paths, or exclude=true to hide "
-                "them."
+                "Control which fields are visible in the App "
+                "sidebar. Persists to the database. Use "
+                "exclude=false (default) to show only the "
+                "listed paths, or exclude=true to hide them."
             ),
             inputSchema={
                 "type": "object",
@@ -466,13 +499,14 @@ def get_app_config_tools():
                     "paths": {
                         "type": "array",
                         "items": {"type": "string"},
-                        "description": "List of field path strings",
+                        "description": ("List of field path strings"),
                     },
                     "exclude": {
                         "type": "boolean",
                         "description": (
                             "If true, hide the listed paths. "
-                            "If false (default), show only the listed paths"
+                            "If false (default), show only "
+                            "the listed paths"
                         ),
                         "default": False,
                     },
@@ -480,87 +514,5 @@ def get_app_config_tools():
                 "required": ["dataset_name", "paths"],
             },
         ),
-    ]
-
-
-_TOOL_NAMES = {
-    "get_app_config",
-    "get_color_scheme",
-    "set_color_scheme",
-    "get_sidebar_groups",
-    "set_sidebar_groups",
-    "set_active_fields",
-}
-
-_REQUIRED_ARGS = {
-    "get_app_config": ["dataset_name"],
-    "get_color_scheme": ["dataset_name"],
-    "set_color_scheme": ["dataset_name"],
-    "get_sidebar_groups": ["dataset_name"],
-    "set_sidebar_groups": ["dataset_name", "groups"],
-    "set_active_fields": ["dataset_name", "paths"],
-}
-
-_TOOL_HANDLERS = {
-    "get_app_config": lambda a: get_app_config(a["dataset_name"]),
-    "get_color_scheme": lambda a: get_color_scheme(a["dataset_name"]),
-    "set_color_scheme": lambda a: set_color_scheme(
-        a["dataset_name"],
-        color_by=a.get("color_by"),
-        color_pool=a.get("color_pool"),
-        fields=a.get("fields"),
-    ),
-    "get_sidebar_groups": lambda a: get_sidebar_groups(a["dataset_name"]),
-    "set_sidebar_groups": lambda a: set_sidebar_groups(
-        a["dataset_name"],
-        a["groups"],
-    ),
-    "set_active_fields": lambda a: set_active_fields(
-        a["dataset_name"],
-        a["paths"],
-        exclude=a.get("exclude", False),
-    ),
-}
-
-
-async def handle_tool_call(name, arguments):
-    """Handles app config tool calls.
-
-    Args:
-        name: the name of the tool
-        arguments: a dict of arguments for the tool
-
-    Returns:
-        a list of :class:`mcp.types.TextContent` instances
-    """
-    try:
-        if name not in _TOOL_NAMES:
-            result = format_response(
-                None, success=False, error=f"Unknown tool: {name}"
-            )
-        else:
-            missing = [
-                arg for arg in _REQUIRED_ARGS[name] if arg not in arguments
-            ]
-            if missing:
-                result = format_response(
-                    None,
-                    success=False,
-                    error=(
-                        f"{missing[0]} is required"
-                        if len(missing) == 1
-                        else f"Required arguments missing: "
-                        f"{', '.join(missing)}"
-                    ),
-                )
-            else:
-                result = _TOOL_HANDLERS[name](arguments)
-
-        return [TextContent(type="text", text=json.dumps(result, indent=2))]
-
-    except Exception as e:
-        logger.error("Error handling app config tool '%s': %s", name, e)
-        error_result = format_response(None, success=False, error=str(e))
-        return [
-            TextContent(type="text", text=json.dumps(error_result, indent=2))
-        ]
+        set_active_fields,
+    )

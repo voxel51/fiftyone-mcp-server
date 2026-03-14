@@ -15,17 +15,8 @@ from pathlib import Path
 
 from mcp.server import Server
 from mcp.server.stdio import stdio_server
-from mcp.types import TextContent
 
-from .tools.aggregations import get_aggregation_tools
-from .tools.app_config import get_app_config_tools
-from .tools.datasets import get_dataset_tools
-from .tools.operators import get_operator_tools
-from .tools.pipelines import get_pipeline_tools
-from .tools.plugins import get_plugin_tools
-from .tools.samples import get_sample_tools
-from .tools.schema import get_schema_tools
-from .tools.session import get_session_tools
+from .registry import ToolRegistry
 from .tools import (
     aggregations,
     app_config,
@@ -37,7 +28,6 @@ from .tools import (
     schema,
     session,
 )
-from .tools.utils import format_response
 
 
 logging.basicConfig(
@@ -45,6 +35,25 @@ logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
 )
 logger = logging.getLogger(__name__)
+
+
+def build_registry():
+    """Builds the tool registry with all MCP tools.
+
+    Returns:
+        a :class:`ToolRegistry` instance with all tools registered
+    """
+    registry = ToolRegistry()
+    datasets.register_tools(registry)
+    operators.register_tools(registry)
+    pipelines.register_tools(registry)
+    plugins.register_tools(registry)
+    session.register_tools(registry)
+    aggregations.register_tools(registry)
+    samples.register_tools(registry)
+    schema.register_tools(registry)
+    app_config.register_tools(registry)
+    return registry
 
 
 def load_config():
@@ -71,99 +80,23 @@ async def main():
     logger.info("Starting %s server...", server_name)
 
     server = Server(server_name)
-
-    all_tools = (
-        get_dataset_tools()
-        + get_operator_tools()
-        + get_pipeline_tools()
-        + get_plugin_tools()
-        + get_session_tools()
-        + get_aggregation_tools()
-        + get_sample_tools()
-        + get_schema_tools()
-        + get_app_config_tools()
-    )
+    registry = build_registry()
 
     @server.list_tools()
     async def list_tools_handler():
-        return all_tools
+        return registry.list_tools()
 
     @server.call_tool()
     async def call_tool_handler(name, arguments):
-        if name in ["list_datasets", "load_dataset", "dataset_summary"]:
-            return await datasets.handle_tool_call(name, arguments)
-        elif name in [
-            "set_context",
-            "get_context",
-            "list_operators",
-            "get_operator_schema",
-            "execute_operator",
-        ]:
-            return await operators.handle_tool_call(name, arguments)
-        elif name in [
-            "list_plugins",
-            "get_plugin_info",
-            "download_plugin",
-            "enable_plugin",
-            "disable_plugin",
-        ]:
-            return await plugins.handle_tool_call(name, arguments)
-        elif name in [
-            "launch_app",
-            "close_app",
-            "get_session_info",
-            "set_view",
-            "clear_view",
-        ]:
-            return await session.handle_tool_call(name, arguments)
-        elif name in [
-            "count_values",
-            "distinct",
-            "bounds",
-            "mean",
-            "sum",
-            "std",
-            "histogram_values",
-            "get_values",
-        ]:
-            return await aggregations.handle_tool_call(name, arguments)
-        elif name in [
-            "add_samples",
-            "set_values",
-            "tag_samples",
-            "untag_samples",
-            "count_sample_tags",
-        ]:
-            return await samples.handle_tool_call(name, arguments)
-        elif name in [
-            "get_field_schema",
-            "add_sample_field",
-        ]:
-            return await schema.handle_tool_call(name, arguments)
-        elif name in [
-            "get_app_config",
-            "get_color_scheme",
-            "set_color_scheme",
-            "get_sidebar_groups",
-            "set_sidebar_groups",
-            "set_active_fields",
-        ]:
-            return await app_config.handle_tool_call(name, arguments)
-        elif name in ["execute_pipeline", "list_delegated_operations"]:
-            return await pipelines.handle_pipeline_tool(name, arguments)
-        else:
-            result = format_response(
-                None, success=False, error=f"Unknown tool: {name}"
-            )
-            return [
-                TextContent(type="text", text=json.dumps(result, indent=2))
-            ]
+        return await registry.call_tool(name, arguments, ctx=None)
 
     logger.info("%s server initialized successfully", server_name)
 
     async with stdio_server() as (read_stream, write_stream):
         await server.run(
-            read_stream, write_stream, server.create_initialization_options()
+            read_stream,
+            write_stream,
+            server.create_initialization_options(),
         )
 
 

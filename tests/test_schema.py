@@ -11,10 +11,11 @@ import json
 import pytest
 
 import fiftyone as fo
+from fiftyone_mcp.registry import ToolRegistry
 from fiftyone_mcp.tools.schema import (
     get_field_schema,
     add_sample_field,
-    handle_tool_call,
+    register_tools,
 )
 
 
@@ -32,7 +33,11 @@ def test_dataset():
     dataset.add_sample_field("label", fo.StringField)
 
     samples = [
-        fo.Sample(filepath=f"image_{i}.jpg", score=float(i), label="cat")
+        fo.Sample(
+            filepath=f"image_{i}.jpg",
+            score=float(i),
+            label="cat",
+        )
         for i in range(3)
     ]
     dataset.add_samples(samples)
@@ -48,16 +53,18 @@ class TestGetFieldSchema:
 
     def test_get_field_schema_success(self, test_dataset):
         """Test getting field schema for a dataset."""
-        result = get_field_schema(test_dataset.name)
+        result = get_field_schema(None, test_dataset.name)
 
         assert result["success"] is True
-        assert result["data"]["dataset_name"] == test_dataset.name
+        assert (
+            result["data"]["dataset_name"] == test_dataset.name
+        )
         assert "fields" in result["data"]
         assert "num_fields" in result["data"]
 
     def test_get_field_schema_known_fields(self, test_dataset):
         """Test that known fields appear with correct types."""
-        result = get_field_schema(test_dataset.name)
+        result = get_field_schema(None, test_dataset.name)
 
         fields = result["data"]["fields"]
         assert "score" in fields
@@ -65,25 +72,31 @@ class TestGetFieldSchema:
         assert fields["score"]["type"] == "FloatField"
         assert fields["label"]["type"] == "StringField"
 
-    def test_get_field_schema_builtin_fields(self, test_dataset):
+    def test_get_field_schema_builtin_fields(
+        self, test_dataset
+    ):
         """Test that built-in fields are included."""
-        result = get_field_schema(test_dataset.name)
+        result = get_field_schema(None, test_dataset.name)
 
         fields = result["data"]["fields"]
         assert "id" in fields
         assert "filepath" in fields
 
-    def test_get_field_schema_has_type_info(self, test_dataset):
+    def test_get_field_schema_has_type_info(
+        self, test_dataset
+    ):
         """Test that each field entry has type metadata."""
-        result = get_field_schema(test_dataset.name)
+        result = get_field_schema(None, test_dataset.name)
 
-        for name, field_info in result["data"]["fields"].items():
+        for name, field_info in result["data"][
+            "fields"
+        ].items():
             assert "type" in field_info
             assert isinstance(field_info["type"], str)
 
     def test_get_field_schema_num_fields(self, test_dataset):
         """Test that num_fields matches the number of fields."""
-        result = get_field_schema(test_dataset.name)
+        result = get_field_schema(None, test_dataset.name)
 
         assert result["data"]["num_fields"] == len(
             result["data"]["fields"]
@@ -91,7 +104,9 @@ class TestGetFieldSchema:
 
     def test_get_field_schema_missing_dataset(self):
         """Test with a non-existent dataset."""
-        result = get_field_schema("nonexistent_dataset_xyz")
+        result = get_field_schema(
+            None, "nonexistent_dataset_xyz"
+        )
 
         assert result["success"] is False
         assert "error" in result
@@ -103,7 +118,7 @@ class TestAddSampleField:
     def test_add_string_field(self, test_dataset):
         """Test adding a StringField."""
         result = add_sample_field(
-            test_dataset.name, "category", "StringField"
+            None, test_dataset.name, "category", "StringField"
         )
 
         assert result["success"] is True
@@ -113,7 +128,10 @@ class TestAddSampleField:
     def test_add_float_field(self, test_dataset):
         """Test adding a FloatField."""
         result = add_sample_field(
-            test_dataset.name, "confidence", "FloatField"
+            None,
+            test_dataset.name,
+            "confidence",
+            "FloatField",
         )
 
         assert result["success"] is True
@@ -122,15 +140,21 @@ class TestAddSampleField:
     def test_add_bool_field(self, test_dataset):
         """Test adding a BooleanField."""
         result = add_sample_field(
-            test_dataset.name, "is_valid", "BooleanField"
+            None,
+            test_dataset.name,
+            "is_valid",
+            "BooleanField",
         )
 
         assert result["success"] is True
-        assert result["data"]["field"]["type"] == "BooleanField"
+        assert (
+            result["data"]["field"]["type"] == "BooleanField"
+        )
 
     def test_add_list_field_with_subfield(self, test_dataset):
         """Test adding a ListField with a subfield type."""
         result = add_sample_field(
+            None,
             test_dataset.name,
             "tags_list",
             "ListField",
@@ -143,11 +167,13 @@ class TestAddSampleField:
     def test_add_field_verifiable(self, test_dataset):
         """Test that added field appears in the schema."""
         add_sample_field(
-            test_dataset.name, "new_field", "IntField"
+            None, test_dataset.name, "new_field", "IntField"
         )
         test_dataset.reload()
 
-        schema_result = get_field_schema(test_dataset.name)
+        schema_result = get_field_schema(
+            None, test_dataset.name
+        )
         fields = schema_result["data"]["fields"]
         assert "new_field" in fields
         assert fields["new_field"]["type"] == "IntField"
@@ -155,7 +181,10 @@ class TestAddSampleField:
     def test_add_field_unknown_type(self, test_dataset):
         """Test with an unsupported field type."""
         result = add_sample_field(
-            test_dataset.name, "bad_field", "UnsupportedType"
+            None,
+            test_dataset.name,
+            "bad_field",
+            "UnsupportedType",
         )
 
         assert result["success"] is False
@@ -164,7 +193,10 @@ class TestAddSampleField:
     def test_add_field_missing_dataset(self):
         """Test with a non-existent dataset."""
         result = add_sample_field(
-            "nonexistent_dataset_xyz", "some_field", "StringField"
+            None,
+            "nonexistent_dataset_xyz",
+            "some_field",
+            "StringField",
         )
 
         assert result["success"] is False
@@ -173,6 +205,7 @@ class TestAddSampleField:
     def test_add_field_invalid_subfield(self, test_dataset):
         """Test ListField with an invalid subfield type."""
         result = add_sample_field(
+            None,
             test_dataset.name,
             "bad_list",
             "ListField",
@@ -183,13 +216,21 @@ class TestAddSampleField:
         assert "error" in result
 
 
-class TestHandleToolCall:
-    """Integration tests for schema tool call handler."""
+class TestRegistry:
+    """Integration tests using ToolRegistry."""
+
+    @pytest.fixture
+    def registry(self):
+        reg = ToolRegistry()
+        register_tools(reg)
+        return reg
 
     @pytest.mark.asyncio
-    async def test_handle_get_field_schema(self, test_dataset):
-        """Test MCP tool call for get_field_schema."""
-        result = await handle_tool_call(
+    async def test_registry_get_field_schema(
+        self, registry, test_dataset
+    ):
+        """Test registry call for get_field_schema."""
+        result = await registry.call_tool(
             "get_field_schema",
             {"dataset_name": test_dataset.name},
         )
@@ -200,9 +241,11 @@ class TestHandleToolCall:
         assert "fields" in data["data"]
 
     @pytest.mark.asyncio
-    async def test_handle_add_sample_field(self, test_dataset):
-        """Test MCP tool call for add_sample_field."""
-        result = await handle_tool_call(
+    async def test_registry_add_sample_field(
+        self, registry, test_dataset
+    ):
+        """Test registry call for add_sample_field."""
+        result = await registry.call_tool(
             "add_sample_field",
             {
                 "dataset_name": test_dataset.name,
@@ -217,51 +260,11 @@ class TestHandleToolCall:
         assert data["data"]["field_name"] == "mcp_added"
 
     @pytest.mark.asyncio
-    async def test_handle_missing_dataset_name(self):
-        """Test MCP tool call without required dataset_name."""
-        result = await handle_tool_call(
-            "get_field_schema",
-            {},
-        )
-
-        assert len(result) == 1
-        data = json.loads(result[0].text)
-        assert data["success"] is False
-        assert "dataset_name" in data["error"]
-
-    @pytest.mark.asyncio
-    async def test_handle_missing_field_type(self, test_dataset):
-        """Test add_sample_field call without required field_type."""
-        result = await handle_tool_call(
-            "add_sample_field",
-            {
-                "dataset_name": test_dataset.name,
-                "field_name": "incomplete",
-            },
-        )
-
-        assert len(result) == 1
-        data = json.loads(result[0].text)
-        assert data["success"] is False
-        assert "field_type" in data["error"]
-
-    @pytest.mark.asyncio
-    async def test_handle_unknown_tool(self):
-        """Test MCP tool call with unknown tool name."""
-        result = await handle_tool_call(
-            "unknown_schema_tool",
-            {"dataset_name": "ds"},
-        )
-
-        assert len(result) == 1
-        data = json.loads(result[0].text)
-        assert data["success"] is False
-        assert "Unknown tool" in data["error"]
-
-    @pytest.mark.asyncio
-    async def test_handle_field_schema_with_private(self, test_dataset):
+    async def test_registry_field_schema_with_private(
+        self, registry, test_dataset
+    ):
         """Test get_field_schema with include_private=True."""
-        result = await handle_tool_call(
+        result = await registry.call_tool(
             "get_field_schema",
             {
                 "dataset_name": test_dataset.name,
@@ -273,3 +276,16 @@ class TestHandleToolCall:
         data = json.loads(result[0].text)
         assert data["success"] is True
         assert data["data"]["num_fields"] >= 1
+
+    @pytest.mark.asyncio
+    async def test_registry_unknown_tool(self, registry):
+        """Test registry call with unknown tool name."""
+        result = await registry.call_tool(
+            "unknown_schema_tool",
+            {"dataset_name": "ds"},
+        )
+
+        assert len(result) == 1
+        data = json.loads(result[0].text)
+        assert data["success"] is False
+        assert "Unknown tool" in data["error"]

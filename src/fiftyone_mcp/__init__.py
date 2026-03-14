@@ -9,3 +9,17 @@ Expose FiftyOne dataset tools via Model Context Protocol.
 """
 
 __version__ = "0.1.0"
+
+
+def register(plugin):
+    """Registers the MCPToolExecutor operator with FiftyOne.
+
+    Called by the FiftyOne plugin framework during plugin
+    discovery.
+
+    Args:
+        plugin: the FiftyOne plugin instance
+    """
+    from .executor import MCPToolExecutor
+
+    plugin.register(MCPToolExecutor)

@@ -1,18 +1,21 @@
 """
 Operator execution tools for FiftyOne MCP server.
 
+Tools receive an ``ExecutionContext`` from the registry. When
+called via the ``MCPToolExecutor`` operator, ``ctx`` is a fully
+hydrated context with ``ctx.ops``, ``ctx.dataset``, etc. When
+called from stdio mode, ``ctx`` is ``None`` and a minimal context
+is built from the ``dataset_name`` argument.
+
 | Copyright 2017-2026, Voxel51, Inc.
 | `voxel51.com <https://voxel51.com/>`_
 |
 """
 
-import asyncio
-import json
 import logging
 import re
 import traceback
 
-import fiftyone as fo
 from eta.core.utils import PackageError
 from fiftyone.operators import registry as op_registry
 from fiftyone.operators.delegated import DelegatedOperationService
@@ -21,18 +24,16 @@ from fiftyone.operators.executor import (
     Executor,
     execute_or_delegate_operator,
 )
-from mcp.types import Tool, TextContent
+from mcp.types import Tool
 
 from .utils import format_response, safe_serialize
 
 
 logger = logging.getLogger(__name__)
 
-_context_manager = None
-
 
 def _build_dependency_error_response(error, operator_uri):
-    """Builds a structured error response for missing dependencies.
+    """Builds a structured error response for missing deps.
 
     Args:
         error: the exception that was raised
@@ -44,7 +45,8 @@ def _build_dependency_error_response(error, operator_uri):
     error_str = str(error)
 
     match = re.search(
-        r"requires that ['\"]([^'\"]+)['\"] is installed", error_str
+        r"requires that ['\"]([^'\"]+)['\"] is installed",
+        error_str,
     )
     package = match.group(1) if match else "unknown"
 
@@ -61,67 +63,61 @@ def _build_dependency_error_response(error, operator_uri):
     )
 
 
-def get_context_manager():
-    """Gets the global context manager instance.
-
-    Returns:
-        a :class:`ContextManager` instance
-    """
-    global _context_manager
-    if _context_manager is None:
-        _context_manager = ContextManager()
-
-    return _context_manager
-
-
-def set_context(
-    dataset_name,
-    view_stages=None,
-    selected_samples=None,
-    selected_labels=None,
-    current_sample=None,
-):
-    """Sets the execution context for operators.
+def _get_request_params(ctx, dataset_name=None):
+    """Builds request_params from ctx or dataset_name.
 
     Args:
-        dataset_name: the name of the dataset to work with
-        view_stages (None): an optional list of DatasetView stages to
-            filter/transform the dataset
-        selected_samples (None): an optional list of selected sample IDs
-        selected_labels (None): an optional list of selected labels
-        current_sample (None): an optional ID of the current sample being
-            viewed
+        ctx: an optional
+            :class:`fiftyone.operators.executor.ExecutionContext`
+        dataset_name (None): an optional dataset name fallback
 
     Returns:
-        a dict with context state summary
+        a request_params dict, or None if neither is available
     """
-    cm = get_context_manager()
-    return cm.set_context(
-        dataset_name,
-        view_stages=view_stages,
-        selected_samples=selected_samples,
-        selected_labels=selected_labels,
-        current_sample=current_sample,
-    )
+    if ctx is not None and hasattr(ctx, "request_params"):
+        return dict(ctx.request_params)
+
+    if dataset_name:
+        return {"dataset_name": dataset_name}
+
+    return None
 
 
-def get_context():
-    """Gets the current execution context state.
+def _get_execution_context(ctx, dataset_name=None, params=None):
+    """Returns an ExecutionContext from ctx or builds a minimal one.
+
+    Args:
+        ctx: an optional
+            :class:`fiftyone.operators.executor.ExecutionContext`
+        dataset_name (None): an optional dataset name
+        params (None): an optional params dict
 
     Returns:
-        a dict with current context state
+        an :class:`ExecutionContext`, or None
     """
-    cm = get_context_manager()
-    return cm.get_context()
+    if ctx is not None:
+        return ctx
+
+    if dataset_name:
+        request_params = {"dataset_name": dataset_name}
+        if params:
+            request_params["params"] = params
+        return ExecutionContext(
+            request_params=request_params,
+            executor=Executor(),
+        )
+
+    return None
 
 
-def list_operators(builtin_only=None, operator_type=None):
+def list_operators(ctx, builtin_only=None, operator_type=None):
     """Lists all available FiftyOne operators.
 
     Args:
-        builtin_only (None): if True, only builtin operators. If False, only
-            custom operators. If None, all operators
-        operator_type (None): filter by type: ``"operator"`` or ``"panel"``
+        ctx: an optional
+            :class:`fiftyone.operators.executor.ExecutionContext`
+        builtin_only (None): if True, only builtin operators
+        operator_type (None): filter by type
 
     Returns:
         a dict containing list of operators
@@ -148,13 +144,20 @@ def list_operators(builtin_only=None, operator_type=None):
                     "plugin_name": op.plugin_name,
                     "builtin": op.builtin,
                     "dynamic": op.config.dynamic,
-                    "allow_delegated_execution": op.config.allow_delegated_execution,
-                    "allow_immediate_execution": op.config.allow_immediate_execution,
+                    "allow_delegated_execution": (
+                        op.config.allow_delegated_execution
+                    ),
+                    "allow_immediate_execution": (
+                        op.config.allow_immediate_execution
+                    ),
                 }
             )
 
         return format_response(
-            {"count": len(operator_list), "operators": operator_list}
+            {
+                "count": len(operator_list),
+                "operators": operator_list,
+            }
         )
 
     except Exception as e:
@@ -162,19 +165,19 @@ def list_operators(builtin_only=None, operator_type=None):
         return format_response(None, success=False, error=str(e))
 
 
-def get_operator_schema(operator_uri, params=None):
+def get_operator_schema(ctx, operator_uri, params=None, dataset_name=None):
     """Gets the input schema for a specific operator.
 
     When ``params`` is provided, the values are injected into the
-    execution context before calling ``resolve_input()``. This allows
-    dynamic operators to return their full schema — including fields
-    that only appear after earlier fields are filled in.
+    execution context before calling ``resolve_input()``.
 
     Args:
-        operator_uri: the URI of the operator (e.g.,
-            ``"@voxel51/operators/tag_samples"``)
-        params (None): an optional dict of parameter values to seed
-            the context with before resolving the schema
+        ctx: an optional
+            :class:`fiftyone.operators.executor.ExecutionContext`
+        operator_uri: the URI of the operator
+        params (None): an optional dict of parameter values
+        dataset_name (None): an optional dataset name (used when
+            ``ctx`` is None)
 
     Returns:
         a dict containing the operator's input schema
@@ -185,23 +188,30 @@ def get_operator_schema(operator_uri, params=None):
             return format_response(
                 None,
                 success=False,
-                error="Operator '%s' not found" % operator_uri,
+                error=("Operator '%s' not found" % operator_uri),
             )
 
-        cm = get_context_manager()
-        ctx = cm.get_execution_context()
-        if ctx is None:
+        exec_ctx = _get_execution_context(
+            ctx, dataset_name=dataset_name, params=params
+        )
+        if exec_ctx is None:
             return format_response(
                 None,
                 success=False,
-                error="Context not set. Use set_context first to get dynamic schema.",
+                error=(
+                    "Either an execution context or "
+                    "dataset_name is required to resolve "
+                    "operator schema."
+                ),
             )
 
-        if params:
-            ctx.request_params = dict(ctx.request_params)
-            ctx.request_params["params"] = params
+        if params and exec_ctx is not ctx:
+            pass  # params already set in _get_execution_context
+        elif params and ctx is not None:
+            exec_ctx.request_params = dict(exec_ctx.request_params)
+            exec_ctx.request_params["params"] = params
 
-        input_property = operator.resolve_input(ctx)
+        input_property = operator.resolve_input(exec_ctx)
         schema = input_property.to_json() if input_property else {}
 
         return format_response(
@@ -227,14 +237,9 @@ def _queue_delegated_operator(
 ):
     """Queues an operator for delegated (background) execution.
 
-    Bypasses the operator's ``allow_delegated_execution`` flag and
-    queues directly via
-    :class:`fiftyone.operators.delegated.DelegatedOperationService`,
-    mirroring the behavior of pipeline delegation.
-
     Args:
         operator_uri: the URI of the operator to queue
-        request_params: the request params dict (already built by caller)
+        request_params: the request params dict
         delegation_target (None): an optional orchestrator target
 
     Returns:
@@ -262,13 +267,15 @@ def _queue_delegated_operator(
                 "success": True,
                 "delegated": True,
                 "operation_id": str(op.id),
-                "message": "Operation queued for delegated execution",
+                "message": ("Operation queued for delegated execution"),
             }
         )
 
     except Exception as e:
         logger.error(
-            "Failed to queue delegated operator '%s': %s", operator_uri, e
+            "Failed to queue delegated operator '%s': %s",
+            operator_uri,
+            e,
         )
         return format_response(
             None,
@@ -278,21 +285,29 @@ def _queue_delegated_operator(
         )
 
 
-async def execute_operator_async(
-    operator_uri, params=None, delegate=False, delegation_target=None
+async def execute_operator(
+    ctx,
+    operator_uri,
+    params=None,
+    dataset_name=None,
+    delegate=False,
+    delegation_target=None,
 ):
-    """Executes a FiftyOne operator asynchronously.
+    """Executes a FiftyOne operator.
 
-    Uses FiftyOne's execute_or_delegate_operator which properly handles
-    generators, delegated execution, and other operator execution modes.
+    When ``ctx`` is a real :class:`ExecutionContext` (operator
+    mode), uses it directly. When ``ctx`` is ``None`` (stdio
+    mode), builds a minimal context from ``dataset_name``.
 
     Args:
+        ctx: an optional
+            :class:`fiftyone.operators.executor.ExecutionContext`
         operator_uri: the URI of the operator to execute
-        params (None): an optional dict of parameters for the operator
-        delegate (False): whether to delegate execution to a background
-            worker instead of running immediately
-        delegation_target (None): an optional orchestrator target for
-            delegated execution
+        params (None): an optional dict of parameters
+        dataset_name (None): an optional dataset name (used when
+            ``ctx`` is None)
+        delegate (False): whether to delegate execution
+        delegation_target (None): an optional orchestrator target
 
     Returns:
         a dict containing execution result
@@ -303,20 +318,27 @@ async def execute_operator_async(
             return format_response(
                 None,
                 success=False,
-                error="Operator '%s' not found" % operator_uri,
+                error=("Operator '%s' not found" % operator_uri),
             )
 
-        cm = get_context_manager()
-        if cm.request_params:
-            request_params = dict(cm.request_params)
-        else:
-            request_params = {}
+        request_params = _get_request_params(ctx, dataset_name=dataset_name)
+        if request_params is None:
+            return format_response(
+                None,
+                success=False,
+                error=(
+                    "Either an execution context or "
+                    "dataset_name is required."
+                ),
+            )
 
         request_params["params"] = params or {}
 
         if delegate:
             return _queue_delegated_operator(
-                operator_uri, request_params, delegation_target
+                operator_uri,
+                request_params,
+                delegation_target,
             )
 
         execution_result = await execute_or_delegate_operator(
@@ -344,7 +366,11 @@ async def execute_operator_async(
         return _build_dependency_error_response(e, operator_uri)
 
     except Exception as e:
-        logger.error("Failed to execute operator '%s': %s", operator_uri, e)
+        logger.error(
+            "Failed to execute operator '%s': %s",
+            operator_uri,
+            e,
+        )
         return format_response(
             None,
             success=False,
@@ -353,329 +379,157 @@ async def execute_operator_async(
         )
 
 
-def execute_operator(
-    operator_uri, params=None, delegate=False, delegation_target=None
-):
-    """Executes a FiftyOne operator.
-
-    Synchronous wrapper around execute_operator_async.
+def register_tools(registry):
+    """Registers all operator tools with the registry.
 
     Args:
-        operator_uri: the URI of the operator to execute
-        params (None): an optional dict of parameters for the operator
-        delegate (False): whether to delegate execution to a background
-            worker instead of running immediately
-        delegation_target (None): an optional orchestrator target for
-            delegated execution
-
-    Returns:
-        a dict containing execution result
+        registry: a :class:`fiftyone_mcp.registry.ToolRegistry`
     """
-    return asyncio.run(
-        execute_operator_async(
-            operator_uri, params, delegate, delegation_target
-        )
-    )
-
-
-def get_operator_tools():
-    """Gets the list of operator-related MCP tools.
-
-    Returns:
-        a list of :class:`mcp.types.Tool` instances
-    """
-    return [
-        Tool(
-            name="set_context",
-            description="Set the execution context for FiftyOne operators. REQUIRED before executing operators or getting schemas. This defines what dataset, view, and selection subsequent operators will work with. The context persists across multiple operator executions until changed.",
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "dataset_name": {
-                        "type": "string",
-                        "description": "Name of the dataset to work with",
-                    },
-                    "view_stages": {
-                        "type": "array",
-                        "description": "Optional DatasetView stages to filter/transform the dataset",
-                        "items": {"type": "object"},
-                    },
-                    "selected_samples": {
-                        "type": "array",
-                        "description": "Optional list of selected sample IDs",
-                        "items": {"type": "string"},
-                    },
-                    "selected_labels": {
-                        "type": "array",
-                        "description": "Optional list of selected labels",
-                        "items": {"type": "object"},
-                    },
-                    "current_sample": {
-                        "type": "string",
-                        "description": "Optional ID of the current sample being viewed",
-                    },
-                },
-                "required": ["dataset_name"],
-            },
-        ),
-        Tool(
-            name="get_context",
-            description="Get the current execution context state including dataset, view, and selection information.",
-            inputSchema={"type": "object", "properties": {}},
-        ),
+    registry.register(
         Tool(
             name="list_operators",
-            description="Discover all available FiftyOne operators (80+ built-in operators from plugins). Returns operators from installed plugins including: @voxel51/operators (50+ core operators like tag_samples, clone_samples), @voxel51/brain (similarity, duplicates, visualization), @voxel51/utils (create_dataset, delete_dataset, clone_dataset), @voxel51/io (import/export), @voxel51/evaluation, @voxel51/annotation, @voxel51/zoo. Use this FIRST to discover what operators are available before executing them.",
+            description=(
+                "Discover all available FiftyOne operators "
+                "(80+ built-in operators from plugins). "
+                "Returns operators from installed plugins "
+                "including: @voxel51/operators (50+ core "
+                "operators like tag_samples, clone_samples), "
+                "@voxel51/brain (similarity, duplicates, "
+                "visualization), @voxel51/utils "
+                "(create_dataset, delete_dataset, "
+                "clone_dataset), @voxel51/io "
+                "(import/export), @voxel51/evaluation, "
+                "@voxel51/annotation, @voxel51/zoo. Use this "
+                "FIRST to discover what operators are "
+                "available before executing them."
+            ),
             inputSchema={
                 "type": "object",
                 "properties": {
                     "builtin_only": {
                         "type": "boolean",
-                        "description": "If true, only return built-in operators. If false, only custom operators. If not provided, return all.",
+                        "description": (
+                            "If true, only return built-in "
+                            "operators. If false, only custom "
+                            "operators. If not provided, "
+                            "return all."
+                        ),
                     },
                     "operator_type": {
                         "type": "string",
                         "enum": ["operator", "panel"],
-                        "description": "Filter by operator type. Omit to return all types.",
+                        "description": (
+                            "Filter by operator type. Omit "
+                            "to return all types."
+                        ),
                     },
                 },
             },
         ),
+        list_operators,
+    )
+
+    registry.register(
         Tool(
             name="get_operator_schema",
-            description='Get the dynamic input schema for a specific operator. Schemas are context-aware and change based on the current dataset/view/selection. Use this AFTER list_operators to understand what parameters an operator accepts. For dynamic operators, pass \'params\' with partial values to resolve fields that depend on earlier selections (e.g., pass {"model": "yolo-nas-s"} to see source and label_field options). Requires context to be set via set_context first.',
+            description=(
+                "Get the dynamic input schema for a specific "
+                "operator. Schemas are context-aware and "
+                "change based on the current dataset/view/"
+                "selection. Use this AFTER list_operators to "
+                "understand what parameters an operator "
+                "accepts. For dynamic operators, pass "
+                "'params' with partial values to resolve "
+                "fields that depend on earlier selections. "
+                "Requires either an execution context or "
+                "dataset_name."
+            ),
             inputSchema={
                 "type": "object",
                 "properties": {
                     "operator_uri": {
                         "type": "string",
-                        "description": "The URI of the operator from list_operators (e.g., '@voxel51/brain/compute_similarity', '@voxel51/utils/create_dataset')",
+                        "description": (
+                            "The URI of the operator from " "list_operators"
+                        ),
                     },
                     "params": {
                         "type": "object",
-                        "description": "Optional parameter values to seed the context with before resolving the schema. For dynamic operators, this reveals fields that depend on earlier selections.",
+                        "description": (
+                            "Optional parameter values to "
+                            "seed the context with before "
+                            "resolving the schema"
+                        ),
+                    },
+                    "dataset_name": {
+                        "type": "string",
+                        "description": (
+                            "Dataset name for schema "
+                            "resolution (used when no "
+                            "execution context is available)"
+                        ),
                     },
                 },
                 "required": ["operator_uri"],
             },
         ),
+        get_operator_schema,
+    )
+
+    registry.register(
         Tool(
             name="execute_operator",
-            description="Execute any FiftyOne operator with the current execution context. This provides access to 80+ operators from the plugin ecosystem. WORKFLOW: (1) Call list_operators to discover available operators, (2) Call get_operator_schema to see required parameters, (3) Call execute_operator with the operator URI and params. Set delegate=true for long-running operations (compute_similarity, compute_visualization, etc.) to queue them for background execution. Use list_delegated_operations to monitor delegated operations. Requires context set via set_context first.",
+            description=(
+                "Execute any FiftyOne operator. Provides "
+                "access to 80+ operators from the plugin "
+                "ecosystem. WORKFLOW: (1) Call list_operators "
+                "to discover available operators, (2) Call "
+                "get_operator_schema to see required "
+                "parameters, (3) Call execute_operator with "
+                "the operator URI and params. Set "
+                "delegate=true for long-running operations "
+                "to queue them for background execution. "
+                "Requires either an execution context or "
+                "dataset_name."
+            ),
             inputSchema={
                 "type": "object",
                 "properties": {
                     "operator_uri": {
                         "type": "string",
-                        "description": "The URI of the operator to execute (from list_operators)",
+                        "description": (
+                            "The URI of the operator to " "execute"
+                        ),
                     },
                     "params": {
                         "type": "object",
-                        "description": "Parameters for the operator. Use get_operator_schema to see what parameters are required.",
+                        "description": ("Parameters for the operator"),
+                    },
+                    "dataset_name": {
+                        "type": "string",
+                        "description": (
+                            "Dataset name for execution "
+                            "(used when no execution context "
+                            "is available)"
+                        ),
                     },
                     "delegate": {
                         "type": "boolean",
-                        "description": "If true, queue the operation for delegated (background) execution instead of running immediately. Use for long-running operations. Check list_operators to see which operators support delegation (allow_delegated_execution=true).",
+                        "description": (
+                            "If true, queue for background " "execution"
+                        ),
                         "default": False,
                     },
                     "delegation_target": {
                         "type": "string",
-                        "description": "Optional orchestrator target for delegated execution (e.g., an Airflow queue name).",
+                        "description": (
+                            "Optional orchestrator target for "
+                            "delegated execution"
+                        ),
                     },
                 },
                 "required": ["operator_uri"],
             },
         ),
-    ]
-
-
-async def handle_tool_call(name, arguments):
-    """Handles operator tool calls.
-
-    Args:
-        name: the name of the tool
-        arguments: a dict of arguments for the tool
-
-    Returns:
-        a list of :class:`mcp.types.TextContent` instances
-    """
-    if name == "set_context":
-        result = set_context(
-            dataset_name=arguments["dataset_name"],
-            view_stages=arguments.get("view_stages"),
-            selected_samples=arguments.get("selected_samples"),
-            selected_labels=arguments.get("selected_labels"),
-            current_sample=arguments.get("current_sample"),
-        )
-    elif name == "get_context":
-        result = get_context()
-    elif name == "list_operators":
-        result = list_operators(
-            builtin_only=arguments.get("builtin_only"),
-            operator_type=arguments.get("operator_type"),
-        )
-    elif name == "get_operator_schema":
-        result = get_operator_schema(
-            arguments["operator_uri"],
-            params=arguments.get("params"),
-        )
-    elif name == "execute_operator":
-        result = await execute_operator_async(
-            operator_uri=arguments["operator_uri"],
-            params=arguments.get("params", {}),
-            delegate=arguments.get("delegate", False),
-            delegation_target=arguments.get("delegation_target"),
-        )
-    else:
-        result = format_response(
-            None, success=False, error="Unknown tool: %s" % name
-        )
-
-    return [TextContent(type="text", text=json.dumps(result, indent=2))]
-
-
-class ContextManager(object):
-    """Manages the execution context state for FiftyOne operators.
-
-    This class maintains the current dataset, view, and selection state that
-    operators use for execution.
-    """
-
-    def __init__(self):
-        self.request_params = {}
-
-    def set_context(
-        self,
-        dataset_name,
-        view_stages=None,
-        selected_samples=None,
-        selected_labels=None,
-        current_sample=None,
-    ):
-        """Sets the execution context.
-
-        Args:
-            dataset_name: the name of the dataset to work with
-            view_stages (None): an optional list of DatasetView stages
-            selected_samples (None): an optional list of selected sample IDs
-            selected_labels (None): an optional list of selected labels
-            current_sample (None): an optional ID of the current sample
-
-        Returns:
-            a dict with context state summary
-        """
-        try:
-            if not fo.dataset_exists(dataset_name):
-                return format_response(
-                    None,
-                    success=False,
-                    error=f"Dataset '{dataset_name}' does not exist",
-                )
-
-            self.request_params = {
-                "dataset_name": dataset_name,
-                "view": view_stages or [],
-                "selected": selected_samples or [],
-                "selected_labels": selected_labels or [],
-                "params": {},
-            }
-
-            if current_sample:
-                self.request_params["current_sample"] = current_sample
-
-            dataset = fo.load_dataset(dataset_name)
-
-            return format_response(
-                {
-                    "dataset_name": dataset_name,
-                    "dataset_info": {
-                        "num_samples": len(dataset),
-                        "media_type": dataset.media_type,
-                    },
-                    "view_stages_count": (
-                        len(view_stages) if view_stages else 0
-                    ),
-                    "selected_samples_count": (
-                        len(selected_samples) if selected_samples else 0
-                    ),
-                    "selected_labels_count": (
-                        len(selected_labels) if selected_labels else 0
-                    ),
-                    "has_current_sample": current_sample is not None,
-                }
-            )
-
-        except Exception as e:
-            logger.error("Failed to set context: %s", e)
-            return format_response(None, success=False, error=str(e))
-
-    def get_context(self):
-        """Gets the current execution context state.
-
-        Returns:
-            a dict with current context state
-        """
-        try:
-            if not self.request_params:
-                return format_response(
-                    {
-                        "context_set": False,
-                        "message": "No context set. Use set_context first.",
-                    }
-                )
-
-            dataset_name = self.request_params.get("dataset_name")
-            dataset = fo.load_dataset(dataset_name) if dataset_name else None
-
-            return format_response(
-                {
-                    "context_set": True,
-                    "dataset_name": dataset_name,
-                    "dataset_info": (
-                        {
-                            "num_samples": len(dataset),
-                            "media_type": dataset.media_type,
-                        }
-                        if dataset
-                        else None
-                    ),
-                    "view_stages_count": len(
-                        self.request_params.get("view", [])
-                    ),
-                    "selected_samples_count": len(
-                        self.request_params.get("selected", [])
-                    ),
-                    "selected_labels_count": len(
-                        self.request_params.get("selected_labels", [])
-                    ),
-                    "has_current_sample": "current_sample"
-                    in self.request_params,
-                }
-            )
-
-        except Exception as e:
-            logger.error("Failed to get context: %s", e)
-            return format_response(None, success=False, error=str(e))
-
-    def get_execution_context(self):
-        """Builds an ExecutionContext from current state.
-
-        Returns:
-            an :class:`ExecutionContext` instance, or None if context not set
-        """
-        if not self.request_params:
-            return None
-
-        return ExecutionContext(
-            request_params=self.request_params,
-            executor=Executor(),
-        )
-
-    def clear_context(self):
-        """Clears the execution context.
-
-        Returns:
-            a dict with success message
-        """
-        self.request_params = {}
-        return format_response({"message": "Context cleared"})
+        execute_operator,
+    )

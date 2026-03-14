@@ -11,14 +11,12 @@ import json
 import pytest
 
 import fiftyone as fo
+from fiftyone_mcp.registry import ToolRegistry
 from fiftyone_mcp.tools.operators import (
-    set_context,
-    get_context,
     list_operators,
     get_operator_schema,
     execute_operator,
-    get_context_manager,
-    handle_tool_call,
+    register_tools,
 )
 
 
@@ -34,7 +32,9 @@ def test_dataset():
     dataset.persistent = True
 
     samples = [
-        fo.Sample(filepath=f"image_{i}.jpg", tags=[f"tag_{i % 3}"])
+        fo.Sample(
+            filepath=f"image_{i}.jpg", tags=[f"tag_{i % 3}"]
+        )
         for i in range(10)
     ]
     dataset.add_samples(samples)
@@ -45,72 +45,12 @@ def test_dataset():
         fo.delete_dataset(dataset_name)
 
 
-@pytest.fixture
-def clear_test_context():
-    """Clears context before and after each test."""
-    cm = get_context_manager()
-    cm.clear_context()
-    yield
-    cm.clear_context()
-
-
-class TestContextManagement:
-    """Tests for context management operations."""
-
-    def test_set_context_success(self, test_dataset, clear_test_context):
-        """Test setting context with valid dataset."""
-        result = set_context(test_dataset.name)
-
-        assert result["success"] is True
-        assert result["data"]["dataset_name"] == test_dataset.name
-        assert result["data"]["dataset_info"]["num_samples"] == 10
-
-    def test_set_context_nonexistent_dataset(self, clear_test_context):
-        """Test setting context with non-existent dataset."""
-        result = set_context("nonexistent_dataset_12345")
-
-        assert result["success"] is False
-        assert "error" in result
-
-    def test_set_context_with_selections(
-        self, test_dataset, clear_test_context
-    ):
-        """Test setting context with sample selections."""
-        sample_ids = [
-            str(sample.id) for sample in test_dataset.take(3)
-        ]
-
-        result = set_context(
-            test_dataset.name, selected_samples=sample_ids
-        )
-
-        assert result["success"] is True
-        assert result["data"]["selected_samples_count"] == 3
-
-    def test_get_context_when_not_set(self, clear_test_context):
-        """Test getting context when no context is set."""
-        result = get_context()
-
-        assert result["success"] is True
-        assert result["data"]["context_set"] is False
-
-    def test_get_context_when_set(self, test_dataset, clear_test_context):
-        """Test getting context after setting it."""
-        set_context(test_dataset.name)
-        result = get_context()
-
-        assert result["success"] is True
-        assert result["data"]["context_set"] is True
-        assert result["data"]["dataset_name"] == test_dataset.name
-
-
-
 class TestOperatorDiscovery:
     """Tests for operator discovery operations."""
 
     def test_list_operators(self):
         """Test listing all operators."""
-        result = list_operators()
+        result = list_operators(None)
 
         assert result["success"] is True
         assert "count" in result["data"]
@@ -120,7 +60,7 @@ class TestOperatorDiscovery:
 
     def test_list_operators_builtin_only(self):
         """Test listing only builtin operators."""
-        result = list_operators(builtin_only=True)
+        result = list_operators(None, builtin_only=True)
 
         assert result["success"] is True
         assert result["data"]["count"] > 0
@@ -130,7 +70,7 @@ class TestOperatorDiscovery:
 
     def test_list_operators_structure(self):
         """Test that operators have required fields."""
-        result = list_operators()
+        result = list_operators(None)
         operators = result["data"]["operators"]
 
         assert len(operators) > 0
@@ -143,7 +83,9 @@ class TestOperatorDiscovery:
 
     def test_operator_type_filter(self):
         """Test filtering operators by type."""
-        result = list_operators(operator_type="operator")
+        result = list_operators(
+            None, operator_type="operator"
+        )
 
         assert result["success"] is True
         assert result["data"]["count"] > 0
@@ -152,22 +94,23 @@ class TestOperatorDiscovery:
 class TestOperatorSchema:
     """Tests for operator schema operations."""
 
-    def test_get_schema_without_context(self, clear_test_context):
-        """Test getting operator schema without setting context."""
+    def test_get_schema_without_context_or_dataset(self):
+        """Test getting schema without context or dataset."""
         result = get_operator_schema(
-            "@voxel51/operators/edit_field_info"
+            None, "@voxel51/operators/edit_field_info"
         )
 
         assert result["success"] is False
-        assert "Context not set" in result["error"]
+        assert "required" in result["error"].lower()
 
-    def test_get_schema_with_context(
-        self, test_dataset, clear_test_context
+    def test_get_schema_with_dataset_name(
+        self, test_dataset
     ):
-        """Test getting operator schema with context set."""
-        set_context(test_dataset.name)
+        """Test getting schema with dataset_name kwarg."""
         result = get_operator_schema(
-            "@voxel51/operators/edit_field_info"
+            None,
+            "@voxel51/operators/edit_field_info",
+            dataset_name=test_dataset.name,
         )
 
         assert result["success"] is True
@@ -175,34 +118,37 @@ class TestOperatorSchema:
         assert "operator_uri" in result["data"]
 
     def test_get_schema_nonexistent_operator(
-        self, test_dataset, clear_test_context
+        self, test_dataset
     ):
         """Test getting schema for non-existent operator."""
-        set_context(test_dataset.name)
-        result = get_operator_schema("@nonexistent/operator")
+        result = get_operator_schema(
+            None,
+            "@nonexistent/operator",
+            dataset_name=test_dataset.name,
+        )
 
         assert result["success"] is False
         assert "not found" in result["error"]
 
-    def test_schema_has_properties(self, test_dataset, clear_test_context):
+    def test_schema_has_properties(self, test_dataset):
         """Test that schema contains properties."""
-        set_context(test_dataset.name)
         result = get_operator_schema(
-            "@voxel51/operators/edit_field_info"
+            None,
+            "@voxel51/operators/edit_field_info",
+            dataset_name=test_dataset.name,
         )
 
         assert result["success"] is True
         schema = result["data"]["input_schema"]
         assert "properties" in schema or "view" in schema
 
-    def test_get_schema_with_params(
-        self, test_dataset, clear_test_context
-    ):
-        """Test getting schema with params for dynamic resolution."""
-        set_context(test_dataset.name)
+    def test_get_schema_with_params(self, test_dataset):
+        """Test getting schema with params for resolution."""
         result = get_operator_schema(
+            None,
             "@voxel51/operators/edit_field_info",
             params={"field_name": "tags"},
+            dataset_name=test_dataset.name,
         )
 
         assert result["success"] is True
@@ -210,12 +156,13 @@ class TestOperatorSchema:
         assert "dynamic" in result["data"]
 
     def test_get_schema_includes_dynamic_flag(
-        self, test_dataset, clear_test_context
+        self, test_dataset
     ):
         """Test that response includes the dynamic flag."""
-        set_context(test_dataset.name)
         result = get_operator_schema(
-            "@voxel51/operators/edit_field_info"
+            None,
+            "@voxel51/operators/edit_field_info",
+            dataset_name=test_dataset.name,
         )
 
         assert result["success"] is True
@@ -226,33 +173,40 @@ class TestOperatorSchema:
 class TestOperatorExecution:
     """Tests for operator execution operations."""
 
-    def test_execute_without_context(self, clear_test_context):
-        """Test executing operator without setting context."""
-        result = execute_operator(
-            "@voxel51/operators/edit_field_info"
+    @pytest.mark.asyncio
+    async def test_execute_without_context_or_dataset(self):
+        """Test executing without context or dataset_name."""
+        result = await execute_operator(
+            None, "@voxel51/operators/edit_field_info"
         )
 
         assert result["success"] is False
-        assert "Context not set" in result["error"]
+        assert "required" in result["error"].lower()
 
-    def test_execute_nonexistent_operator(
-        self, test_dataset, clear_test_context
+    @pytest.mark.asyncio
+    async def test_execute_nonexistent_operator(
+        self, test_dataset
     ):
         """Test executing non-existent operator."""
-        set_context(test_dataset.name)
-        result = execute_operator("@nonexistent/operator")
+        result = await execute_operator(
+            None,
+            "@nonexistent/operator",
+            dataset_name=test_dataset.name,
+        )
 
         assert result["success"] is False
         assert "not found" in result["error"]
 
-    def test_execute_operator_structure(
-        self, test_dataset, clear_test_context
+    @pytest.mark.asyncio
+    async def test_execute_operator_structure(
+        self, test_dataset
     ):
         """Test that execute returns proper structure."""
-        set_context(test_dataset.name)
-        result = execute_operator(
+        result = await execute_operator(
+            None,
             "@voxel51/operators/edit_field_info",
             params={"field_name": "tags"},
+            dataset_name=test_dataset.name,
         )
 
         assert "success" in result
@@ -260,38 +214,22 @@ class TestOperatorExecution:
         if result["success"]:
             assert "operator_uri" in result["data"]
 
-    def test_execute_with_selection(self, test_dataset, clear_test_context):
-        """Test executing operator with sample selection."""
-        sample_ids = [str(sample.id) for sample in test_dataset.take(3)]
 
-        set_context(test_dataset.name, selected_samples=sample_ids)
-        result = get_context()
+class TestRegistry:
+    """Integration tests using ToolRegistry."""
 
-        assert result["success"] is True
-        assert result["data"]["selected_samples_count"] == 3
-
-
-class TestMCPIntegration:
-    """Integration tests for MCP tool call handling."""
+    @pytest.fixture
+    def registry(self):
+        reg = ToolRegistry()
+        register_tools(reg)
+        return reg
 
     @pytest.mark.asyncio
-    async def test_tool_call_set_context(
-        self, test_dataset, clear_test_context
-    ):
-        """Test MCP tool call for set_context."""
-        result = await handle_tool_call(
-            "set_context", {"dataset_name": test_dataset.name}
+    async def test_registry_list_operators(self, registry):
+        """Test registry call for list_operators."""
+        result = await registry.call_tool(
+            "list_operators", {}
         )
-
-        assert len(result) == 1
-        assert hasattr(result[0], "text")
-        data = json.loads(result[0].text)
-        assert data["success"] is True
-
-    @pytest.mark.asyncio
-    async def test_tool_call_list_operators(self):
-        """Test MCP tool call for list_operators."""
-        result = await handle_tool_call("list_operators", {})
 
         assert len(result) == 1
         data = json.loads(result[0].text)
@@ -299,9 +237,52 @@ class TestMCPIntegration:
         assert data["data"]["count"] > 0
 
     @pytest.mark.asyncio
-    async def test_tool_call_unknown_tool(self):
-        """Test MCP tool call with unknown tool name."""
-        result = await handle_tool_call("unknown_tool", {})
+    async def test_registry_get_operator_schema(
+        self, registry, test_dataset
+    ):
+        """Test registry call for get_operator_schema."""
+        result = await registry.call_tool(
+            "get_operator_schema",
+            {
+                "operator_uri": (
+                    "@voxel51/operators/edit_field_info"
+                ),
+                "dataset_name": test_dataset.name,
+            },
+        )
+
+        assert len(result) == 1
+        data = json.loads(result[0].text)
+        assert data["success"] is True
+        assert "input_schema" in data["data"]
+
+    @pytest.mark.asyncio
+    async def test_registry_execute_operator(
+        self, registry, test_dataset
+    ):
+        """Test registry call for execute_operator."""
+        result = await registry.call_tool(
+            "execute_operator",
+            {
+                "operator_uri": (
+                    "@voxel51/operators/edit_field_info"
+                ),
+                "params": {"field_name": "tags"},
+                "dataset_name": test_dataset.name,
+                "delegate": False,
+            },
+        )
+
+        assert len(result) == 1
+        data = json.loads(result[0].text)
+        assert "success" in data
+
+    @pytest.mark.asyncio
+    async def test_registry_unknown_tool(self, registry):
+        """Test registry call with unknown tool name."""
+        result = await registry.call_tool(
+            "unknown_tool", {}
+        )
 
         assert len(result) == 1
         data = json.loads(result[0].text)
@@ -312,37 +293,34 @@ class TestMCPIntegration:
 class TestEdgeCases:
     """Tests for edge cases and error handling."""
 
-    def test_context_persistence(self, test_dataset, clear_test_context):
-        """Test that context persists across multiple operations."""
-        set_context(test_dataset.name)
-
-        result1 = get_context()
-        result2 = get_context()
-
-        assert result1["data"]["dataset_name"] == result2[
-            "data"
-        ]["dataset_name"]
-
-    def test_empty_selections(self, test_dataset, clear_test_context):
-        """Test setting context with empty selections."""
-        result = set_context(
-            test_dataset.name,
-            selected_samples=[],
-            selected_labels=[],
-        )
+    def test_list_operators_includes_delegation_info(self):
+        """Test that list_operators includes delegation."""
+        result = list_operators(None)
 
         assert result["success"] is True
-        assert result["data"]["selected_samples_count"] == 0
+        assert result["data"]["count"] > 0
 
-    def test_multiple_context_updates(
-        self, test_dataset, clear_test_context
+        first_op = result["data"]["operators"][0]
+        assert "allow_delegated_execution" in first_op
+        assert "allow_immediate_execution" in first_op
+        assert isinstance(
+            first_op["allow_delegated_execution"], bool
+        )
+        assert isinstance(
+            first_op["allow_immediate_execution"], bool
+        )
+
+    @pytest.mark.asyncio
+    async def test_execute_nonexistent_with_delegate(
+        self, test_dataset
     ):
-        """Test updating context multiple times."""
-        set_context(test_dataset.name)
-        result1 = get_context()
+        """Test executing non-existent operator delegated."""
+        result = await execute_operator(
+            None,
+            "@nonexistent/operator",
+            delegate=True,
+            dataset_name=test_dataset.name,
+        )
 
-        set_context(test_dataset.name, selected_samples=["sample1"])
-        result2 = get_context()
-
-        assert result1["data"]["selected_samples_count"] == 0
-        assert result2["data"]["selected_samples_count"] == 1
+        assert result["success"] is False
+        assert "not found" in result["error"]

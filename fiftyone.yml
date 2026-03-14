@@ -1,0 +1,5 @@
+name: "@voxel51/mcp"
+version: 0.1.0
+description: MCP server tools as FiftyOne operators
+operators:
+  - execute_mcp_tool
