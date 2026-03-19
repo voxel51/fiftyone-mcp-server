@@ -6,20 +6,30 @@ Dataset management tools for FiftyOne MCP server.
 |
 """
 
-import json
 import logging
 
 import fiftyone as fo
-from mcp.types import Tool, TextContent
+from mcp.types import Tool
 
-from .utils import format_response, safe_serialize, dataset_to_summary
+from .utils import (
+    SDK,
+    format_response,
+    mcp_tool,
+    safe_serialize,
+    dataset_to_summary,
+)
 
 
 logger = logging.getLogger(__name__)
 
 
-def list_datasets():
+@mcp_tool(SDK)
+def list_datasets(ctx):
     """Lists all available FiftyOne datasets.
+
+    Args:
+        ctx: an optional
+            :class:`fiftyone.operators.executor.ExecutionContext`
 
     Returns:
         a dict containing list of dataset names and metadata
@@ -53,10 +63,13 @@ def list_datasets():
         return format_response(None, success=False, error=str(e))
 
 
-def load_dataset(name):
+@mcp_tool(SDK)
+def load_dataset(ctx, name):
     """Loads a FiftyOne dataset by name and returns basic info.
 
     Args:
+        ctx: an optional
+            :class:`fiftyone.operators.executor.ExecutionContext`
         name: the name of the dataset to load
 
     Returns:
@@ -82,10 +95,13 @@ def load_dataset(name):
         return format_response(None, success=False, error=str(e))
 
 
-def dataset_summary(name):
+@mcp_tool(SDK)
+def dataset_summary(ctx, name):
     """Gets detailed summary statistics for a dataset.
 
     Args:
+        ctx: an optional
+            :class:`fiftyone.operators.executor.ExecutionContext`
         name: the name of the dataset
 
     Returns:
@@ -95,7 +111,10 @@ def dataset_summary(name):
         dataset = fo.load_dataset(name)
         summary = dataset_to_summary(dataset)
 
-        summary["stats"] = {"total_samples": len(dataset), "tags": {}}
+        summary["stats"] = {
+            "total_samples": len(dataset),
+            "tags": {},
+        }
 
         for tag in dataset.tags:
             tagged_view = dataset.match_tags(tag)
@@ -123,35 +142,54 @@ def dataset_summary(name):
         return format_response(None, success=False, error=str(e))
 
 
-def get_dataset_tools():
-    """Gets dataset tool definitions.
+def register_tools(registry):
+    """Registers all dataset tools with the registry.
 
-    Returns:
-        a list of :class:`mcp.types.Tool` instances
+    Args:
+        registry: a :class:`fiftyone_mcp.registry.ToolRegistry`
     """
-    return [
+    registry.register(
         Tool(
             name="list_datasets",
-            description="List all available FiftyOne datasets with metadata",
-            inputSchema={"type": "object", "properties": {}, "required": []},
+            description=(
+                "List all available FiftyOne datasets with " "metadata"
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {},
+                "required": [],
+            },
         ),
+        list_datasets,
+    )
+
+    registry.register(
         Tool(
             name="load_dataset",
-            description="Load a FiftyOne dataset by name and return basic information",
+            description=(
+                "Load a FiftyOne dataset by name and return "
+                "basic information"
+            ),
             inputSchema={
                 "type": "object",
                 "properties": {
                     "name": {
                         "type": "string",
-                        "description": "Name of the dataset to load",
+                        "description": ("Name of the dataset to load"),
                     }
                 },
                 "required": ["name"],
             },
         ),
+        load_dataset,
+    )
+
+    registry.register(
         Tool(
             name="dataset_summary",
-            description="Get detailed summary statistics and metadata for a dataset",
+            description=(
+                "Get detailed summary statistics and metadata " "for a dataset"
+            ),
             inputSchema={
                 "type": "object",
                 "properties": {
@@ -163,48 +201,5 @@ def get_dataset_tools():
                 "required": ["name"],
             },
         ),
-    ]
-
-
-async def handle_tool_call(name, arguments):
-    """Handles tool calls for dataset operations.
-
-    Args:
-        name: the name of the tool
-        arguments: a dict of arguments for the tool
-
-    Returns:
-        a list of :class:`mcp.types.TextContent` instances
-    """
-    try:
-        if name == "list_datasets":
-            result = list_datasets()
-        elif name == "load_dataset":
-            dataset_name = arguments.get("name")
-            if not dataset_name:
-                result = format_response(
-                    None, success=False, error="Dataset name is required"
-                )
-            else:
-                result = load_dataset(dataset_name)
-        elif name == "dataset_summary":
-            dataset_name = arguments.get("name")
-            if not dataset_name:
-                result = format_response(
-                    None, success=False, error="Dataset name is required"
-                )
-            else:
-                result = dataset_summary(dataset_name)
-        else:
-            result = format_response(
-                None, success=False, error="Unknown tool: %s" % name
-            )
-
-        return [TextContent(type="text", text=json.dumps(result, indent=2))]
-
-    except Exception as e:
-        logger.error("Error handling tool call '%s': %s", name, e)
-        error_result = format_response(None, success=False, error=str(e))
-        return [
-            TextContent(type="text", text=json.dumps(error_result, indent=2))
-        ]
+        dataset_summary,
+    )

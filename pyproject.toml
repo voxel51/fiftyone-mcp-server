@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "fiftyone-mcp-server"
-version = "0.1.7"
+version = "0.1.8"
 description = "MCP server exposing FiftyOne dataset analysis tools"
 authors = ["Voxel51, Inc. <info@voxel51.com>"]
 license = "Apache-2.0"

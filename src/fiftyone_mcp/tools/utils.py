@@ -8,11 +8,50 @@ Utility functions for FiftyOne MCP tools.
 
 import logging
 
-import fiftyone as fo
 import fiftyone.core.view as fov
 
 
 logger = logging.getLogger(__name__)
+
+# Runtime modes for MCP tools
+SDK = "sdk"
+APP = "app"
+SESSION = "session"
+
+
+def mcp_tool(*modes):
+    """Tags an MCP tool with its supported runtime modes.
+
+    A tool can support one or more modes:
+
+    * ``SDK`` — Pure data operations via the FiftyOne SDK.
+    * ``APP`` — Requires a connected App (``ctx.ops``).
+    * ``SESSION`` — Notebook / local session bootstrapping.
+
+    Tools tagged with multiple modes (e.g. ``SDK, APP``)
+    adapt their behaviour based on whether ``ctx`` is
+    available; the guard is handled centrally by the
+    :class:`~fiftyone_mcp.registry.ToolRegistry`.
+
+    The modes are stored as ``fn._mcp_modes`` (a frozenset)
+    and read at registration time.
+
+    Args:
+        *modes: one or more of ``SDK``, ``APP``, ``SESSION``
+
+    Returns:
+        a decorator
+    """
+    if not modes:
+        modes = (SDK,)
+
+    modes_set = frozenset(modes)
+
+    def decorator(fn):
+        fn._mcp_modes = modes_set
+        return fn
+
+    return decorator
 
 
 def _get_view(dataset, view_stages=None):
@@ -87,22 +126,6 @@ def safe_serialize(obj):
         return safe_serialize(obj.__dict__)
 
     return str(obj)
-
-
-def get_dataset_safe(name):
-    """Safely loads a FiftyOne dataset by name.
-
-    Args:
-        name: the name of the dataset
-
-    Returns:
-        a :class:`fiftyone.core.dataset.Dataset`, or None
-    """
-    try:
-        return fo.load_dataset(name)
-    except Exception as e:
-        logger.warning("Failed to load dataset '%s': %s", name, e)
-        return None
 
 
 def dataset_to_summary(dataset):

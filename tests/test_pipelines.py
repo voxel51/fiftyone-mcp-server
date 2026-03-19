@@ -7,21 +7,20 @@ Tests for pipeline execution and delegated operation tools.
 """
 
 import json
+from unittest.mock import MagicMock
 
 import pytest
 
 import fiftyone as fo
+from fiftyone_mcp.registry import ToolRegistry
 from fiftyone_mcp.tools.operators import (
-    set_context,
-    get_context_manager,
     list_operators,
     execute_operator,
-    handle_tool_call,
 )
 from fiftyone_mcp.tools.pipelines import (
-    execute_pipeline_async,
-    handle_pipeline_tool,
+    execute_pipeline,
     list_delegated_operations,
+    register_tools,
 )
 
 
@@ -37,7 +36,9 @@ def test_dataset():
     dataset.persistent = True
 
     samples = [
-        fo.Sample(filepath=f"image_{i}.jpg", tags=[f"tag_{i % 3}"])
+        fo.Sample(
+            filepath=f"image_{i}.jpg", tags=[f"tag_{i % 3}"]
+        )
         for i in range(10)
     ]
     dataset.add_samples(samples)
@@ -48,34 +49,26 @@ def test_dataset():
         fo.delete_dataset(dataset_name)
 
 
-@pytest.fixture
-def clear_test_context():
-    """Clears context before and after each test."""
-    cm = get_context_manager()
-    cm.clear_context()
-    yield
-    cm.clear_context()
-
-
 class TestExecutePipeline:
     """Tests for pipeline execution."""
 
     @pytest.mark.asyncio
-    async def test_execute_pipeline_empty_stages(self, clear_test_context):
+    async def test_execute_pipeline_empty_stages(self):
         """Test executing pipeline with no stages."""
-        result = await execute_pipeline_async(stages=[])
+        result = await execute_pipeline(None, stages=[])
 
         assert result["success"] is False
         assert "at least one stage" in result["error"]
 
     @pytest.mark.asyncio
     async def test_execute_pipeline_missing_operator_uri(
-        self, test_dataset, clear_test_context
+        self, test_dataset
     ):
-        """Test executing pipeline with missing operator_uri."""
-        set_context(test_dataset.name)
-        result = await execute_pipeline_async(
-            stages=[{"params": {"key": "value"}}]
+        """Test executing pipeline with missing uri."""
+        result = await execute_pipeline(
+            None,
+            stages=[{"params": {"key": "value"}}],
+            dataset_name=test_dataset.name,
         )
 
         assert result["success"] is False
@@ -83,56 +76,61 @@ class TestExecutePipeline:
 
     @pytest.mark.asyncio
     async def test_execute_pipeline_invalid_operator(
-        self, test_dataset, clear_test_context
+        self, test_dataset
     ):
-        """Test executing pipeline with non-existent operator URI."""
-        set_context(test_dataset.name)
-        result = await execute_pipeline_async(
+        """Test executing pipeline with bad operator URI."""
+        result = await execute_pipeline(
+            None,
             stages=[
                 {
                     "operator_uri": "@nonexistent/operator",
                     "params": {},
                 }
-            ]
+            ],
+            dataset_name=test_dataset.name,
         )
 
         assert result["success"] is False
         assert "not found" in result["error"]
 
     @pytest.mark.asyncio
-    async def test_execute_pipeline_without_context(
-        self, clear_test_context
-    ):
-        """Test executing pipeline without setting context."""
-        result = await execute_pipeline_async(
+    async def test_execute_pipeline_without_context(self):
+        """Test executing pipeline without context or name."""
+        result = await execute_pipeline(
+            None,
             stages=[
                 {
-                    "operator_uri": "@voxel51/operators/edit_field_info",
+                    "operator_uri": (
+                        "@voxel51/operators/edit_field_info"
+                    ),
                     "params": {},
                 }
-            ]
+            ],
         )
 
         assert result["success"] is False
-        assert "Context not set" in result["error"]
+        assert "required" in result["error"].lower()
 
     @pytest.mark.asyncio
-    async def test_execute_pipeline_validates_all_before_executing(
-        self, test_dataset, clear_test_context
+    async def test_execute_pipeline_validates_all(
+        self, test_dataset
     ):
-        """Test that pipeline validates all stages before executing any."""
-        set_context(test_dataset.name)
-        result = await execute_pipeline_async(
+        """Test that pipeline validates all stages first."""
+        result = await execute_pipeline(
+            None,
             stages=[
                 {
-                    "operator_uri": "@voxel51/operators/edit_field_info",
+                    "operator_uri": (
+                        "@voxel51/operators/edit_field_info"
+                    ),
                     "params": {"field_name": "tags"},
                 },
                 {
                     "operator_uri": "@nonexistent/operator",
                     "params": {},
                 },
-            ]
+            ],
+            dataset_name=test_dataset.name,
         )
 
         assert result["success"] is False
@@ -140,19 +138,21 @@ class TestExecutePipeline:
 
     @pytest.mark.asyncio
     async def test_execute_pipeline_response_structure(
-        self, test_dataset, clear_test_context
+        self, test_dataset
     ):
-        """Test that pipeline execution returns proper structure."""
-        set_context(test_dataset.name)
-
-        result = await execute_pipeline_async(
+        """Test that pipeline returns proper structure."""
+        result = await execute_pipeline(
+            None,
             stages=[
                 {
-                    "operator_uri": "@voxel51/operators/edit_field_info",
+                    "operator_uri": (
+                        "@voxel51/operators/edit_field_info"
+                    ),
                     "name": "edit_tags",
                     "params": {"field_name": "tags"},
                 },
-            ]
+            ],
+            dataset_name=test_dataset.name,
         )
 
         assert "success" in result
@@ -174,17 +174,20 @@ class TestExecutePipeline:
 
     @pytest.mark.asyncio
     async def test_execute_pipeline_auto_names(
-        self, test_dataset, clear_test_context
+        self, test_dataset
     ):
-        """Test that stages without names get auto-generated names."""
-        set_context(test_dataset.name)
-        result = await execute_pipeline_async(
+        """Test that stages without names get auto-names."""
+        result = await execute_pipeline(
+            None,
             stages=[
                 {
-                    "operator_uri": "@voxel51/operators/edit_field_info",
+                    "operator_uri": (
+                        "@voxel51/operators/edit_field_info"
+                    ),
                     "params": {"field_name": "tags"},
                 },
-            ]
+            ],
+            dataset_name=test_dataset.name,
         )
 
         if result["success"]:
@@ -192,24 +195,83 @@ class TestExecutePipeline:
             assert stage_result["name"].startswith("stage_0_")
 
 
+class TestPipelineAppMode:
+    """Tests for pipeline App mode (ctx.trigger) execution."""
+
+    @pytest.mark.asyncio
+    async def test_pipeline_with_ctx_triggers_stages(self):
+        """Test that pipeline uses ctx.trigger() in App mode."""
+        ctx = MagicMock()
+        ctx.request_params = {"dataset_name": "test"}
+
+        result = await execute_pipeline(
+            ctx,
+            stages=[
+                {
+                    "operator_uri": (
+                        "@voxel51/operators/edit_field_info"
+                    ),
+                    "params": {"field_name": "tags"},
+                },
+                {
+                    "operator_uri": (
+                        "@voxel51/operators/clone_sample_field"
+                    ),
+                    "params": {"field_name": "tags"},
+                },
+            ],
+        )
+
+        assert result["success"] is True
+        data = result["data"]
+        assert data["stages_total"] == 2
+        assert data["stages_executed"] == 2
+        assert data["stages_failed"] == 0
+
+        assert ctx.trigger.call_count == 2
+        ctx.trigger.assert_any_call(
+            "@voxel51/operators/edit_field_info",
+            {"field_name": "tags"},
+        )
+
+        for stage_result in data["results"]:
+            assert stage_result["triggered"] is True
+
+    @pytest.mark.asyncio
+    async def test_pipeline_without_ctx_no_trigger(self):
+        """Test that pipeline without ctx does not trigger."""
+        result = await execute_pipeline(
+            None,
+            stages=[],
+        )
+
+        assert result["success"] is False
+
+
 class TestListDelegatedOperations:
     """Tests for listing delegated operations."""
 
     def test_list_all_operations(self):
         """Test listing all delegated operations."""
-        result = list_delegated_operations()
+        result = list_delegated_operations(None)
 
         assert result["success"] is True
         assert "count" in result["data"]
         assert "operations" in result["data"]
-        assert isinstance(result["data"]["operations"], list)
+        assert isinstance(
+            result["data"]["operations"], list
+        )
 
     def test_list_filter_by_state(self):
         """Test filtering operations by run state."""
-        result = list_delegated_operations(run_state="completed")
+        result = list_delegated_operations(
+            None, run_state="completed"
+        )
 
         assert result["success"] is True
-        assert isinstance(result["data"]["operations"], list)
+        assert isinstance(
+            result["data"]["operations"], list
+        )
 
         for op in result["data"]["operations"]:
             assert op["run_state"] == "completed"
@@ -217,7 +279,7 @@ class TestListDelegatedOperations:
     def test_list_filter_by_dataset(self):
         """Test filtering operations by dataset name."""
         result = list_delegated_operations(
-            dataset_name="nonexistent_dataset"
+            None, dataset_name="nonexistent_dataset"
         )
 
         assert result["success"] is True
@@ -225,14 +287,14 @@ class TestListDelegatedOperations:
 
     def test_list_with_limit(self):
         """Test listing operations with a limit."""
-        result = list_delegated_operations(limit=5)
+        result = list_delegated_operations(None, limit=5)
 
         assert result["success"] is True
         assert len(result["data"]["operations"]) <= 5
 
     def test_list_operations_structure(self):
         """Test that operations have required fields."""
-        result = list_delegated_operations()
+        result = list_delegated_operations(None)
 
         assert result["success"] is True
         for op in result["data"]["operations"]:
@@ -247,8 +309,8 @@ class TestDelegationInExecuteOperator:
     """Tests for delegation support in execute_operator."""
 
     def test_list_operators_includes_delegation_info(self):
-        """Test that list_operators includes delegation fields."""
-        result = list_operators()
+        """Test that list_operators includes delegation."""
+        result = list_operators(None)
 
         assert result["success"] is True
         assert result["data"]["count"] > 0
@@ -256,88 +318,113 @@ class TestDelegationInExecuteOperator:
         first_op = result["data"]["operators"][0]
         assert "allow_delegated_execution" in first_op
         assert "allow_immediate_execution" in first_op
-        assert isinstance(first_op["allow_delegated_execution"], bool)
-        assert isinstance(first_op["allow_immediate_execution"], bool)
+        assert isinstance(
+            first_op["allow_delegated_execution"], bool
+        )
+        assert isinstance(
+            first_op["allow_immediate_execution"], bool
+        )
 
-    def test_execute_operator_nonexistent_with_delegate(
-        self, test_dataset, clear_test_context
+    @pytest.mark.asyncio
+    async def test_execute_operator_nonexistent_delegated(
+        self, test_dataset
     ):
-        """Test executing non-existent operator with delegate flag."""
-        set_context(test_dataset.name)
-        result = execute_operator(
-            "@nonexistent/operator", delegate=True
+        """Test executing non-existent operator delegated."""
+        result = await execute_operator(
+            None,
+            "@nonexistent/operator",
+            delegate=True,
+            dataset_name=test_dataset.name,
         )
 
         assert result["success"] is False
         assert "not found" in result["error"]
 
 
-class TestMCPIntegration:
-    """Integration tests for MCP tool call handling."""
+class TestRegistry:
+    """Integration tests using ToolRegistry."""
+
+    @pytest.fixture
+    def registry(self):
+        reg = ToolRegistry()
+        register_tools(reg)
+        return reg
 
     @pytest.mark.asyncio
-    async def test_tool_call_execute_pipeline(
-        self, test_dataset, clear_test_context
+    async def test_registry_execute_pipeline(
+        self, registry, test_dataset
     ):
-        """Test MCP tool call for execute_pipeline."""
-        set_context(test_dataset.name)
-
-        result = await handle_pipeline_tool(
+        """Test registry call for execute_pipeline."""
+        result = await registry.call_tool(
             "execute_pipeline",
             {
                 "stages": [
                     {
-                        "operator_uri": "@voxel51/operators/edit_field_info",
+                        "operator_uri": (
+                            "@voxel51/operators/"
+                            "edit_field_info"
+                        ),
                         "params": {"field_name": "tags"},
                     },
                 ],
+                "dataset_name": test_dataset.name,
             },
         )
 
-        assert len(result) == 1
-        assert hasattr(result[0], "text")
+        assert len(result.content) == 1
+        assert hasattr(result.content[0], "text")
 
-        data = json.loads(result[0].text)
+        data = json.loads(result.content[0].text)
         assert "success" in data
 
     @pytest.mark.asyncio
-    async def test_tool_call_list_delegated(self):
-        """Test MCP tool call for list_delegated_operations."""
-        result = await handle_pipeline_tool(
+    async def test_registry_list_delegated(self, registry):
+        """Test registry call for list_delegated_operations."""
+        result = await registry.call_tool(
             "list_delegated_operations", {}
         )
 
-        assert len(result) == 1
-        data = json.loads(result[0].text)
+        assert len(result.content) == 1
+        data = json.loads(result.content[0].text)
         assert data["success"] is True
         assert "operations" in data["data"]
 
     @pytest.mark.asyncio
-    async def test_tool_call_unknown_tool(self):
-        """Test MCP tool call with unknown tool name."""
-        result = await handle_pipeline_tool("unknown_tool", {})
+    async def test_registry_unknown_tool(self, registry):
+        """Test registry call with unknown tool name."""
+        result = await registry.call_tool(
+            "unknown_tool", {}
+        )
 
-        assert len(result) == 1
-        data = json.loads(result[0].text)
+        assert len(result.content) == 1
+        data = json.loads(result.content[0].text)
         assert data["success"] is False
         assert "Unknown tool" in data["error"]
 
     @pytest.mark.asyncio
-    async def test_tool_call_execute_operator_with_delegate(
-        self, test_dataset, clear_test_context
+    async def test_registry_execute_operator_delegated(
+        self, registry, test_dataset
     ):
-        """Test MCP tool call for execute_operator with delegate param."""
-        set_context(test_dataset.name)
+        """Test registry call for execute_operator delegated."""
+        from fiftyone_mcp.tools.operators import (
+            register_tools as register_op_tools,
+        )
 
-        result = await handle_tool_call(
+        reg = ToolRegistry()
+        register_op_tools(reg)
+
+        result = await reg.call_tool(
             "execute_operator",
             {
-                "operator_uri": "@voxel51/operators/edit_field_info",
+                "operator_uri": (
+                    "@voxel51/operators/edit_field_info"
+                ),
                 "params": {"field_name": "tags"},
+                "dataset_name": test_dataset.name,
                 "delegate": False,
             },
         )
 
-        assert len(result) == 1
-        data = json.loads(result[0].text)
+        assert len(result.content) == 1
+        data = json.loads(result.content[0].text)
         assert "success" in data
