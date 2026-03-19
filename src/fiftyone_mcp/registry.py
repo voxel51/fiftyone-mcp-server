@@ -17,18 +17,26 @@ import logging
 
 from mcp.types import TextContent
 
-from .tools.utils import format_response
+from .tools.utils import APP, SDK, format_response
 
 
 logger = logging.getLogger(__name__)
+
+_DEFAULT_MODES = frozenset({SDK})
 
 
 class ToolRegistry(object):
     """Central registry for MCP tools.
 
-    Each tool is stored as a ``(schema, handler)`` pair keyed by name.
-    Handlers follow the signature ``(ctx, **kwargs) -> dict`` and may
-    be either sync or async.
+    Each tool is stored as a ``(schema, handler, modes)`` triple
+    keyed by name.  Handlers follow the signature
+    ``(ctx, **kwargs) -> dict`` and may be either sync or async.
+
+    The ``modes`` field is read from ``handler._mcp_modes``
+    (set by the :func:`~fiftyone_mcp.tools.utils.mcp_tool`
+    decorator).  Tools that are exclusively ``APP`` are guarded
+    centrally in :meth:`call_tool` — the handler itself does
+    not need to check for ``ctx``.
     """
 
     def __init__(self):
@@ -41,9 +49,11 @@ class ToolRegistry(object):
             schema: a :class:`mcp.types.Tool` instance
             handler: a callable ``(ctx, **kwargs) -> dict``
         """
+        modes = getattr(handler, "_mcp_modes", _DEFAULT_MODES)
         self._tools[schema.name] = {
             "schema": schema,
             "handler": handler,
+            "modes": modes,
         }
 
     def get_tool(self, name):
@@ -53,20 +63,36 @@ class ToolRegistry(object):
             name: the tool name
 
         Returns:
-            a dict with ``schema`` and ``handler`` keys, or None
+            a dict with ``schema``, ``handler``, and ``modes``
+            keys, or None
         """
         return self._tools.get(name)
 
-    def list_tools(self):
-        """Returns all registered MCP tool schemas.
+    def list_tools(self, mode=None):
+        """Returns registered MCP tool schemas.
+
+        Args:
+            mode (None): an optional mode string (``"sdk"``,
+                ``"app"``, or ``"session"``).  When provided,
+                only tools tagged with that mode are returned.
 
         Returns:
             a list of :class:`mcp.types.Tool` instances
         """
+        if mode is not None:
+            return [
+                t["schema"] for t in self._tools.values() if mode in t["modes"]
+            ]
+
         return [t["schema"] for t in self._tools.values()]
 
     async def call_tool(self, name, arguments, ctx=None):
         """Dispatches a tool call by name.
+
+        App-only tools (tagged exclusively with ``APP``) are
+        guarded here — if ``ctx`` is missing or has no ``ops``,
+        a structured error is returned before the handler is
+        called.
 
         Handles both sync and async handlers transparently.
 
@@ -92,6 +118,24 @@ class ToolRegistry(object):
                     text=json.dumps(result, indent=2),
                 )
             ]
+
+        # Guard: App-only tools require ctx.ops
+        if entry["modes"] == {APP}:
+            if ctx is None or not hasattr(ctx, "ops"):
+                result = format_response(
+                    None,
+                    success=False,
+                    error=(
+                        "'%s' requires an App execution "
+                        "context. Call via MCPToolExecutor." % name
+                    ),
+                )
+                return [
+                    TextContent(
+                        type="text",
+                        text=json.dumps(result, indent=2),
+                    )
+                ]
 
         try:
             result = entry["handler"](ctx, **(arguments or {}))

@@ -11,12 +11,13 @@ import logging
 import fiftyone as fo
 from mcp.types import Tool
 
-from .utils import _get_view, format_response, safe_serialize
+from .utils import SDK, _get_view, format_response, mcp_tool, safe_serialize
 
 
 logger = logging.getLogger(__name__)
 
 
+@mcp_tool(SDK)
 def add_samples(ctx, dataset_name, samples):
     """Adds new samples to a dataset.
 
@@ -62,6 +63,7 @@ def add_samples(ctx, dataset_name, samples):
         return format_response(None, success=False, error=str(e))
 
 
+@mcp_tool(SDK)
 def set_values(ctx, dataset_name, field, values, key_field=None):
     """Sets the values of a field across samples.
 
@@ -115,6 +117,7 @@ def set_values(ctx, dataset_name, field, values, key_field=None):
         return format_response(None, success=False, error=str(e))
 
 
+@mcp_tool(SDK)
 def tag_samples(ctx, dataset_name, tags, view_stages=None, sample_ids=None):
     """Adds tags to samples in a dataset.
 
@@ -155,6 +158,7 @@ def tag_samples(ctx, dataset_name, tags, view_stages=None, sample_ids=None):
         return format_response(None, success=False, error=str(e))
 
 
+@mcp_tool(SDK)
 def untag_samples(ctx, dataset_name, tags, view_stages=None, sample_ids=None):
     """Removes tags from samples in a dataset.
 
@@ -199,6 +203,7 @@ def untag_samples(ctx, dataset_name, tags, view_stages=None, sample_ids=None):
         return format_response(None, success=False, error=str(e))
 
 
+@mcp_tool(SDK)
 def count_sample_tags(ctx, dataset_name):
     """Counts how many samples have each tag.
 

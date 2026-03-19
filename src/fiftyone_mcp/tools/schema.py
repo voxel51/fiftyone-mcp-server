@@ -12,7 +12,7 @@ import logging
 import fiftyone as fo
 from mcp.types import Tool
 
-from .utils import format_response
+from .utils import SDK, format_response, mcp_tool
 
 
 logger = logging.getLogger(__name__)
@@ -59,6 +59,7 @@ def _serialize_field(field):
     return info
 
 
+@mcp_tool(SDK)
 def get_field_schema(ctx, dataset_name, include_private=False):
     """Gets the full field schema for a dataset.
 
@@ -96,6 +97,7 @@ def get_field_schema(ctx, dataset_name, include_private=False):
         return format_response(None, success=False, error=str(e))
 
 
+@mcp_tool(SDK)
 def add_sample_field(
     ctx,
     dataset_name,

@@ -12,6 +12,7 @@ tools like ``set_view`` work end-to-end.
 |
 """
 
+import asyncio
 import json
 import logging
 
@@ -78,8 +79,6 @@ class MCPToolExecutor(foo.Operator):
             return
 
         try:
-            import asyncio
-
             result = entry["handler"](ctx, **tool_args)
             if asyncio.iscoroutine(result):
                 result = await result

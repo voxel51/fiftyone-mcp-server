@@ -37,7 +37,7 @@ from fiftyone.operators.executor import (
 )
 from mcp.types import Tool
 
-from .utils import format_response, safe_serialize
+from .utils import APP, SDK, format_response, mcp_tool, safe_serialize
 
 
 logger = logging.getLogger(__name__)
@@ -121,6 +121,7 @@ def _get_execution_context(ctx, dataset_name=None, params=None):
     return None
 
 
+@mcp_tool(SDK)
 def list_operators(ctx, builtin_only=None, operator_type=None):
     """Lists all available FiftyOne operators.
 
@@ -176,6 +177,7 @@ def list_operators(ctx, builtin_only=None, operator_type=None):
         return format_response(None, success=False, error=str(e))
 
 
+@mcp_tool(SDK)
 def get_operator_schema(ctx, operator_uri, params=None, dataset_name=None):
     """Gets the input schema for a specific operator.
 
@@ -296,6 +298,7 @@ def _queue_delegated_operator(
         )
 
 
+@mcp_tool(SDK, APP)
 async def execute_operator(
     ctx,
     operator_uri,

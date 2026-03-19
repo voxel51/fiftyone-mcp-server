@@ -11,7 +11,7 @@ import logging
 import fiftyone as fo
 from mcp.types import Tool
 
-from .utils import format_response
+from .utils import SDK, format_response, mcp_tool
 
 
 logger = logging.getLogger(__name__)
@@ -102,6 +102,7 @@ def _serialize_app_config(ac):
     }
 
 
+@mcp_tool(SDK)
 def get_app_config(ctx, dataset_name):
     """Returns the full app config for a dataset.
 
@@ -130,6 +131,7 @@ def get_app_config(ctx, dataset_name):
         return format_response(None, success=False, error=str(e))
 
 
+@mcp_tool(SDK)
 def get_color_scheme(ctx, dataset_name):
     """Returns the color scheme config for a dataset.
 
@@ -160,6 +162,7 @@ def get_color_scheme(ctx, dataset_name):
         return format_response(None, success=False, error=str(e))
 
 
+@mcp_tool(SDK)
 def set_color_scheme(
     ctx,
     dataset_name,
@@ -205,6 +208,7 @@ def set_color_scheme(
         return format_response(None, success=False, error=str(e))
 
 
+@mcp_tool(SDK)
 def get_sidebar_groups(ctx, dataset_name):
     """Returns the sidebar group configuration for a dataset.
 
@@ -238,6 +242,7 @@ def get_sidebar_groups(ctx, dataset_name):
         return format_response(None, success=False, error=str(e))
 
 
+@mcp_tool(SDK)
 def set_sidebar_groups(ctx, dataset_name, groups):
     """Replaces the sidebar group configuration for a dataset.
 
@@ -279,6 +284,7 @@ def set_sidebar_groups(ctx, dataset_name, groups):
         return format_response(None, success=False, error=str(e))
 
 
+@mcp_tool(SDK)
 def set_active_fields(ctx, dataset_name, paths, exclude=False):
     """Controls which fields are visible in the App sidebar.
 

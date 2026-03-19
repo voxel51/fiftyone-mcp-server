@@ -17,13 +17,14 @@ import fiftyone as fo
 from fiftyone import ViewField as F
 from mcp.types import Tool
 
-from .utils import format_response
+from .utils import APP, SESSION, format_response, mcp_tool
 from .view_builder import build_view
 
 
 logger = logging.getLogger(__name__)
 
 
+@mcp_tool(SESSION)
 def launch_app(ctx, dataset_name=None, port=None):
     """Launches the FiftyOne App.
 
@@ -65,6 +66,7 @@ def launch_app(ctx, dataset_name=None, port=None):
         return format_response(None, success=False, error=str(e))
 
 
+@mcp_tool(APP)
 def get_session_info(ctx):
     """Gets information about the current state.
 
@@ -78,19 +80,6 @@ def get_session_info(ctx):
     Returns:
         a dict with session details
     """
-    if ctx is None:
-        return format_response(
-            {
-                "active": False,
-                "message": (
-                    "No execution context. Use launch_app to "
-                    "start the App, or call via the "
-                    "MCPToolExecutor operator."
-                ),
-            },
-            success=True,
-        )
-
     try:
         dataset = getattr(ctx, "dataset", None)
         view = getattr(ctx, "view", None)
@@ -115,6 +104,7 @@ def get_session_info(ctx):
         return format_response(None, success=False, error=str(e))
 
 
+@mcp_tool(APP)
 def set_view(
     ctx,
     stages=None,
@@ -150,16 +140,6 @@ def set_view(
     Returns:
         a dict with view info
     """
-    if ctx is None or not hasattr(ctx, "ops"):
-        return format_response(
-            None,
-            success=False,
-            error=(
-                "set_view requires an execution context with "
-                "ctx.ops. Call via the MCPToolExecutor operator."
-            ),
-        )
-
     try:
         dataset = ctx.dataset
         if dataset is None:
@@ -233,6 +213,7 @@ def set_view(
         return format_response(None, success=False, error=str(e))
 
 
+@mcp_tool(APP)
 def clear_view(ctx):
     """Clears the current view via ``ctx.ops.clear_view()``.
 
@@ -243,17 +224,6 @@ def clear_view(ctx):
     Returns:
         a dict with success status
     """
-    if ctx is None or not hasattr(ctx, "ops"):
-        return format_response(
-            None,
-            success=False,
-            error=(
-                "clear_view requires an execution context "
-                "with ctx.ops. Call via the MCPToolExecutor "
-                "operator."
-            ),
-        )
-
     try:
         ctx.ops.clear_view()
         return format_response({"message": "View cleared"})

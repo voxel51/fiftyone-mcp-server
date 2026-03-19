@@ -13,12 +13,8 @@ Upstream from ``claude-agent/agent/view_builder.py``.
 |
 """
 
-import logging
-
 import fiftyone as fo
 from fiftyone import ViewField as F
-
-logger = logging.getLogger(__name__)
 
 _EVAL_GLOBALS = {"__builtins__": {}}
 _EVAL_LOCALS = {"F": F}

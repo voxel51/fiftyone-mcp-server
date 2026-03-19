@@ -11,12 +11,13 @@ import logging
 import fiftyone.plugins as fop
 from mcp.types import Tool
 
-from .utils import format_response
+from .utils import SDK, format_response, mcp_tool
 
 
 logger = logging.getLogger(__name__)
 
 
+@mcp_tool(SDK)
 def list_plugins(ctx, enabled=None):
     """Lists available FiftyOne plugins.
 
@@ -67,6 +68,7 @@ def list_plugins(ctx, enabled=None):
         return format_response(None, success=False, error=str(e))
 
 
+@mcp_tool(SDK)
 def get_plugin_info(ctx, plugin_name):
     """Gets detailed information about a specific plugin.
 
@@ -104,6 +106,7 @@ def get_plugin_info(ctx, plugin_name):
         return format_response(None, success=False, error=str(e))
 
 
+@mcp_tool(SDK)
 def download_plugin(ctx, url_or_repo, plugin_names=None, overwrite=False):
     """Downloads and installs a FiftyOne plugin.
 
@@ -143,6 +146,7 @@ def download_plugin(ctx, url_or_repo, plugin_names=None, overwrite=False):
         return format_response(None, success=False, error=str(e))
 
 
+@mcp_tool(SDK)
 def enable_plugin(ctx, plugin_name):
     """Enables a downloaded plugin.
 
@@ -165,6 +169,7 @@ def enable_plugin(ctx, plugin_name):
         return format_response(None, success=False, error=str(e))
 
 
+@mcp_tool(SDK)
 def disable_plugin(ctx, plugin_name):
     """Disables a plugin.
 

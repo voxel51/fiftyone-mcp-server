@@ -11,12 +11,19 @@ import logging
 import fiftyone as fo
 from mcp.types import Tool
 
-from .utils import format_response, safe_serialize, dataset_to_summary
+from .utils import (
+    SDK,
+    format_response,
+    mcp_tool,
+    safe_serialize,
+    dataset_to_summary,
+)
 
 
 logger = logging.getLogger(__name__)
 
 
+@mcp_tool(SDK)
 def list_datasets(ctx):
     """Lists all available FiftyOne datasets.
 
@@ -56,6 +63,7 @@ def list_datasets(ctx):
         return format_response(None, success=False, error=str(e))
 
 
+@mcp_tool(SDK)
 def load_dataset(ctx, name):
     """Loads a FiftyOne dataset by name and returns basic info.
 
@@ -87,6 +95,7 @@ def load_dataset(ctx, name):
         return format_response(None, success=False, error=str(e))
 
 
+@mcp_tool(SDK)
 def dataset_summary(ctx, name):
     """Gets detailed summary statistics for a dataset.
 

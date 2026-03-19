@@ -11,12 +11,13 @@ import logging
 import fiftyone as fo
 from mcp.types import Tool
 
-from .utils import _get_view, format_response, safe_serialize
+from .utils import SDK, _get_view, format_response, mcp_tool, safe_serialize
 
 
 logger = logging.getLogger(__name__)
 
 
+@mcp_tool(SDK)
 def count_values(ctx, dataset_name, field, view_stages=None):
     """Counts the occurrences of each value for a field.
 
@@ -50,6 +51,7 @@ def count_values(ctx, dataset_name, field, view_stages=None):
         return format_response(None, success=False, error=str(e))
 
 
+@mcp_tool(SDK)
 def distinct(ctx, dataset_name, field, view_stages=None):
     """Gets the distinct values for a field.
 
@@ -82,6 +84,7 @@ def distinct(ctx, dataset_name, field, view_stages=None):
         return format_response(None, success=False, error=str(e))
 
 
+@mcp_tool(SDK)
 def compute_bounds(ctx, dataset_name, field, view_stages=None):
     """Gets the min and max values for a numeric field.
 
@@ -108,6 +111,7 @@ def compute_bounds(ctx, dataset_name, field, view_stages=None):
         return format_response(None, success=False, error=str(e))
 
 
+@mcp_tool(SDK)
 def compute_mean(ctx, dataset_name, field, view_stages=None):
     """Computes the mean value of a numeric field.
 
@@ -134,6 +138,7 @@ def compute_mean(ctx, dataset_name, field, view_stages=None):
         return format_response(None, success=False, error=str(e))
 
 
+@mcp_tool(SDK)
 def compute_sum(ctx, dataset_name, field, view_stages=None):
     """Computes the sum of a numeric field across all samples.
 
@@ -160,6 +165,7 @@ def compute_sum(ctx, dataset_name, field, view_stages=None):
         return format_response(None, success=False, error=str(e))
 
 
+@mcp_tool(SDK)
 def compute_std(ctx, dataset_name, field, view_stages=None):
     """Computes the standard deviation of a numeric field.
 
@@ -186,6 +192,7 @@ def compute_std(ctx, dataset_name, field, view_stages=None):
         return format_response(None, success=False, error=str(e))
 
 
+@mcp_tool(SDK)
 def histogram_values(
     ctx,
     dataset_name,
@@ -235,6 +242,7 @@ def histogram_values(
         return format_response(None, success=False, error=str(e))
 
 
+@mcp_tool(SDK)
 def get_values(ctx, dataset_name, field, view_stages=None, limit=10000):
     """Gets the values of a field across all samples.
 
