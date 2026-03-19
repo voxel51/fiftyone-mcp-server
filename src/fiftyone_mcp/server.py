@@ -88,7 +88,8 @@ async def main():
 
     @server.call_tool()
     async def call_tool_handler(name, arguments):
-        return await registry.call_tool(name, arguments, ctx=None)
+        result = await registry.call_tool(name, arguments, ctx=None)
+        return result.content
 
     logger.info("%s server initialized successfully", server_name)
 

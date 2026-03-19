@@ -152,13 +152,15 @@ def set_view(
         # Dynamic stages path
         if stages:
             view = build_view(dataset, stages)
-            ctx.ops.set_view(view=view)
-            return format_response(
+            trigger = ctx.ops.set_view(view=view)
+            result = format_response(
                 {
                     "num_samples": len(view),
                     "stages": len(stages),
                 }
             )
+            result["_triggers"] = [trigger]
+            return result
 
         # Saved view path
         if view_name:
@@ -169,13 +171,15 @@ def set_view(
                     error=("Saved view '%s' not found." % view_name),
                 )
             view = dataset.load_saved_view(view_name)
-            ctx.ops.set_view(view=view)
-            return format_response(
+            trigger = ctx.ops.set_view(view=view)
+            result = format_response(
                 {
                     "view_name": view_name,
                     "num_samples": len(view),
                 }
             )
+            result["_triggers"] = [trigger]
+            return result
 
         # Convenience params path
         view = dataset.view()
@@ -199,14 +203,15 @@ def set_view(
         if sample_ids:
             view = view.select(sample_ids)
 
-        ctx.ops.set_view(view=view)
-
-        return format_response(
+        trigger = ctx.ops.set_view(view=view)
+        result = format_response(
             {
                 "num_samples": len(view),
                 "stages": len(view._stages),
             }
         )
+        result["_triggers"] = [trigger]
+        return result
 
     except Exception as e:
         logger.error("Error setting view: %s", e)
@@ -225,8 +230,10 @@ def clear_view(ctx):
         a dict with success status
     """
     try:
-        ctx.ops.clear_view()
-        return format_response({"message": "View cleared"})
+        trigger = ctx.ops.clear_view()
+        result = format_response({"message": "View cleared"})
+        result["_triggers"] = [trigger]
+        return result
     except Exception as e:
         logger.error("Error clearing view: %s", e)
         return format_response(None, success=False, error=str(e))

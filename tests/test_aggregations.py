@@ -321,8 +321,8 @@ class TestRegistry:
             },
         )
 
-        assert len(result) == 1
-        data = json.loads(result[0].text)
+        assert len(result.content) == 1
+        data = json.loads(result.content[0].text)
         assert data["success"] is True
         assert "counts" in data["data"]
 
@@ -334,8 +334,8 @@ class TestRegistry:
             {"dataset_name": "ds", "field": "f"},
         )
 
-        assert len(result) == 1
-        data = json.loads(result[0].text)
+        assert len(result.content) == 1
+        data = json.loads(result.content[0].text)
         assert data["success"] is False
         assert "Unknown tool" in data["error"]
 
@@ -353,7 +353,7 @@ class TestRegistry:
             },
         )
 
-        assert len(result) == 1
-        data = json.loads(result[0].text)
+        assert len(result.content) == 1
+        data = json.loads(result.content[0].text)
         assert data["success"] is True
         assert data["data"]["truncated"] is True

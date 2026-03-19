@@ -235,8 +235,8 @@ class TestRegistry:
             {"dataset_name": test_dataset.name},
         )
 
-        assert len(result) == 1
-        data = json.loads(result[0].text)
+        assert len(result.content) == 1
+        data = json.loads(result.content[0].text)
         assert data["success"] is True
         assert "fields" in data["data"]
 
@@ -254,8 +254,8 @@ class TestRegistry:
             },
         )
 
-        assert len(result) == 1
-        data = json.loads(result[0].text)
+        assert len(result.content) == 1
+        data = json.loads(result.content[0].text)
         assert data["success"] is True
         assert data["data"]["field_name"] == "mcp_added"
 
@@ -272,8 +272,8 @@ class TestRegistry:
             },
         )
 
-        assert len(result) == 1
-        data = json.loads(result[0].text)
+        assert len(result.content) == 1
+        data = json.loads(result.content[0].text)
         assert data["success"] is True
         assert data["data"]["num_fields"] >= 1
 
@@ -285,7 +285,7 @@ class TestRegistry:
             {"dataset_name": "ds"},
         )
 
-        assert len(result) == 1
-        data = json.loads(result[0].text)
+        assert len(result.content) == 1
+        data = json.loads(result.content[0].text)
         assert data["success"] is False
         assert "Unknown tool" in data["error"]

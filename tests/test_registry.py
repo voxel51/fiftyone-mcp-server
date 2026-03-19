@@ -89,8 +89,8 @@ class TestToolRegistry:
         result = await reg.call_tool(
             "sync_tool", {"key": "value"}
         )
-        assert len(result) == 1
-        data = json.loads(result[0].text)
+        assert len(result.content) == 1
+        data = json.loads(result.content[0].text)
         assert data["success"] is True
         assert data["data"]["key"] == "value"
 
@@ -111,8 +111,8 @@ class TestToolRegistry:
         )
 
         result = await reg.call_tool("async_tool", {})
-        assert len(result) == 1
-        data = json.loads(result[0].text)
+        assert len(result.content) == 1
+        data = json.loads(result.content[0].text)
         assert data["success"] is True
         assert data["data"]["async"] is True
 
@@ -122,8 +122,8 @@ class TestToolRegistry:
         reg = ToolRegistry()
 
         result = await reg.call_tool("missing_tool", {})
-        assert len(result) == 1
-        data = json.loads(result[0].text)
+        assert len(result.content) == 1
+        data = json.loads(result.content[0].text)
         assert data["success"] is False
         assert "Unknown tool" in data["error"]
 
@@ -147,8 +147,8 @@ class TestToolRegistry:
         )
 
         result = await reg.call_tool("bad", {})
-        assert len(result) == 1
-        data = json.loads(result[0].text)
+        assert len(result.content) == 1
+        data = json.loads(result.content[0].text)
         assert data["success"] is False
         assert "boom" in data["error"]
 
@@ -416,7 +416,7 @@ class TestAppGuard:
         )
 
         result = await reg.call_tool("app_tool", {}, ctx=None)
-        data = json.loads(result[0].text)
+        data = json.loads(result.content[0].text)
         assert data["success"] is False
         assert "requires an App" in data["error"]
 
@@ -439,7 +439,7 @@ class TestAppGuard:
 
         ctx = MagicMock()
         result = await reg.call_tool("app_tool", {}, ctx=ctx)
-        data = json.loads(result[0].text)
+        data = json.loads(result.content[0].text)
         assert data["success"] is True
         assert data["data"] == "ok"
 
@@ -463,7 +463,7 @@ class TestAppGuard:
         result = await reg.call_tool(
             "multi_tool", {}, ctx=None
         )
-        data = json.loads(result[0].text)
+        data = json.loads(result.content[0].text)
         assert data["success"] is True
 
     @pytest.mark.asyncio
@@ -482,7 +482,7 @@ class TestAppGuard:
         result = await reg.call_tool(
             "sdk_tool", {}, ctx=None
         )
-        data = json.loads(result[0].text)
+        data = json.loads(result.content[0].text)
         assert data["success"] is True
 
 

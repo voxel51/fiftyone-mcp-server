@@ -80,17 +80,17 @@ class TestRegistry:
         result = await registry.call_tool(
             "launch_app", {}
         )
-        assert len(result) == 1
-        assert result[0].type == "text"
+        assert len(result.content) == 1
+        assert result.content[0].type == "text"
 
     @pytest.mark.asyncio
     async def test_registry_get_session_info(self, registry):
         result = await registry.call_tool(
             "get_session_info", {}
         )
-        assert len(result) == 1
-        assert result[0].type == "text"
-        data = json.loads(result[0].text)
+        assert len(result.content) == 1
+        assert result.content[0].type == "text"
+        data = json.loads(result.content[0].text)
         assert data["success"] is True
         assert "active" in data["data"]
 
@@ -100,8 +100,8 @@ class TestRegistry:
         result = await registry.call_tool(
             "set_view", {}
         )
-        assert len(result) == 1
-        data = json.loads(result[0].text)
+        assert len(result.content) == 1
+        data = json.loads(result.content[0].text)
         assert data["success"] is False
 
     @pytest.mark.asyncio
@@ -110,8 +110,8 @@ class TestRegistry:
         result = await registry.call_tool(
             "clear_view", {}
         )
-        assert len(result) == 1
-        data = json.loads(result[0].text)
+        assert len(result.content) == 1
+        data = json.loads(result.content[0].text)
         assert data["success"] is False
 
     @pytest.mark.asyncio
@@ -119,8 +119,8 @@ class TestRegistry:
         result = await registry.call_tool(
             "unknown_tool", {}
         )
-        assert len(result) == 1
-        assert result[0].type == "text"
-        data = json.loads(result[0].text)
+        assert len(result.content) == 1
+        assert result.content[0].type == "text"
+        data = json.loads(result.content[0].text)
         assert data["success"] is False
         assert "Unknown tool" in data["error"]

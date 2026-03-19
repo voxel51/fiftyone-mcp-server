@@ -232,8 +232,8 @@ class TestRegistry:
             "list_operators", {}
         )
 
-        assert len(result) == 1
-        data = json.loads(result[0].text)
+        assert len(result.content) == 1
+        data = json.loads(result.content[0].text)
         assert data["success"] is True
         assert data["data"]["count"] > 0
 
@@ -252,8 +252,8 @@ class TestRegistry:
             },
         )
 
-        assert len(result) == 1
-        data = json.loads(result[0].text)
+        assert len(result.content) == 1
+        data = json.loads(result.content[0].text)
         assert data["success"] is True
         assert "input_schema" in data["data"]
 
@@ -274,8 +274,8 @@ class TestRegistry:
             },
         )
 
-        assert len(result) == 1
-        data = json.loads(result[0].text)
+        assert len(result.content) == 1
+        data = json.loads(result.content[0].text)
         assert "success" in data
 
     @pytest.mark.asyncio
@@ -285,8 +285,8 @@ class TestRegistry:
             "unknown_tool", {}
         )
 
-        assert len(result) == 1
-        data = json.loads(result[0].text)
+        assert len(result.content) == 1
+        data = json.loads(result.content[0].text)
         assert data["success"] is False
         assert "Unknown tool" in data["error"]
 

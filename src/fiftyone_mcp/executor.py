@@ -83,6 +83,15 @@ class MCPToolExecutor(foo.Operator):
             if asyncio.iscoroutine(result):
                 result = await result
 
+            # Extract triggers before serialization
+            triggers = []
+            if isinstance(result, dict):
+                triggers = result.pop("_triggers", [])
+
+            # Yield triggers so the App processes them immediately
+            for trigger in triggers:
+                yield trigger
+
             yield json.dumps(result, indent=2)
 
         except Exception as e:

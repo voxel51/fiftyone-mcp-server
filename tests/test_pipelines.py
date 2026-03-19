@@ -371,10 +371,10 @@ class TestRegistry:
             },
         )
 
-        assert len(result) == 1
-        assert hasattr(result[0], "text")
+        assert len(result.content) == 1
+        assert hasattr(result.content[0], "text")
 
-        data = json.loads(result[0].text)
+        data = json.loads(result.content[0].text)
         assert "success" in data
 
     @pytest.mark.asyncio
@@ -384,8 +384,8 @@ class TestRegistry:
             "list_delegated_operations", {}
         )
 
-        assert len(result) == 1
-        data = json.loads(result[0].text)
+        assert len(result.content) == 1
+        data = json.loads(result.content[0].text)
         assert data["success"] is True
         assert "operations" in data["data"]
 
@@ -396,8 +396,8 @@ class TestRegistry:
             "unknown_tool", {}
         )
 
-        assert len(result) == 1
-        data = json.loads(result[0].text)
+        assert len(result.content) == 1
+        data = json.loads(result.content[0].text)
         assert data["success"] is False
         assert "Unknown tool" in data["error"]
 
@@ -425,6 +425,6 @@ class TestRegistry:
             },
         )
 
-        assert len(result) == 1
-        data = json.loads(result[0].text)
+        assert len(result.content) == 1
+        data = json.loads(result.content[0].text)
         assert "success" in data

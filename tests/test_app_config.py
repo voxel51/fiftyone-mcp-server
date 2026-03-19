@@ -336,8 +336,8 @@ class TestRegistry:
             {"dataset_name": test_dataset.name},
         )
 
-        assert len(result) == 1
-        data = json.loads(result[0].text)
+        assert len(result.content) == 1
+        data = json.loads(result.content[0].text)
         assert data["success"] is True
         assert "app_config" in data["data"]
 
@@ -355,8 +355,8 @@ class TestRegistry:
             },
         )
 
-        assert len(result) == 1
-        data = json.loads(result[0].text)
+        assert len(result.content) == 1
+        data = json.loads(result.content[0].text)
         assert data["success"] is True
         assert (
             data["data"]["color_scheme"]["color_by"]
@@ -378,8 +378,8 @@ class TestRegistry:
             },
         )
 
-        assert len(result) == 1
-        data = json.loads(result[0].text)
+        assert len(result.content) == 1
+        data = json.loads(result.content[0].text)
         assert data["success"] is True
         assert (
             data["data"]["sidebar_groups"][0]["name"] == "core"
@@ -398,8 +398,8 @@ class TestRegistry:
             },
         )
 
-        assert len(result) == 1
-        data = json.loads(result[0].text)
+        assert len(result.content) == 1
+        data = json.loads(result.content[0].text)
         assert data["success"] is True
 
     @pytest.mark.asyncio
@@ -410,7 +410,7 @@ class TestRegistry:
             {"dataset_name": "ds"},
         )
 
-        assert len(result) == 1
-        data = json.loads(result[0].text)
+        assert len(result.content) == 1
+        data = json.loads(result.content[0].text)
         assert data["success"] is False
         assert "Unknown tool" in data["error"]

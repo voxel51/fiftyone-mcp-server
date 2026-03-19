@@ -14,6 +14,7 @@ server's if/elif chain.
 import asyncio
 import json
 import logging
+from collections import namedtuple
 
 from mcp.types import TextContent
 
@@ -23,6 +24,8 @@ from .tools.utils import APP, SDK, format_response
 logger = logging.getLogger(__name__)
 
 _DEFAULT_MODES = frozenset({SDK})
+
+ToolResult = namedtuple("ToolResult", ["content", "triggers"])
 
 
 class ToolRegistry(object):
@@ -96,6 +99,14 @@ class ToolRegistry(object):
 
         Handles both sync and async handlers transparently.
 
+        Handlers may include a ``_triggers`` key in their
+        response dict containing a list of
+        :class:`~fiftyone.operators.message.GeneratedMessage`
+        objects produced by ``ctx.ops`` / ``ctx.trigger()``
+        calls.  These are extracted before JSON serialization
+        and returned in ``ToolResult.triggers`` so the calling
+        generator operator can yield them to the App.
+
         Args:
             name: the tool name
             arguments: a dict of arguments for the tool
@@ -103,7 +114,10 @@ class ToolRegistry(object):
                 :class:`fiftyone.operators.executor.ExecutionContext`
 
         Returns:
-            a list of :class:`mcp.types.TextContent` instances
+            a :class:`ToolResult` with ``content``
+            (list of :class:`mcp.types.TextContent`) and
+            ``triggers`` (list of
+            :class:`~fiftyone.operators.message.GeneratedMessage`)
         """
         entry = self._tools.get(name)
         if entry is None:
@@ -112,12 +126,15 @@ class ToolRegistry(object):
                 success=False,
                 error="Unknown tool: %s" % name,
             )
-            return [
-                TextContent(
-                    type="text",
-                    text=json.dumps(result, indent=2),
-                )
-            ]
+            return ToolResult(
+                content=[
+                    TextContent(
+                        type="text",
+                        text=json.dumps(result, indent=2),
+                    )
+                ],
+                triggers=[],
+            )
 
         # Guard: App-only tools require ctx.ops
         if entry["modes"] == {APP}:
@@ -130,32 +147,46 @@ class ToolRegistry(object):
                         "context. Call via MCPToolExecutor." % name
                     ),
                 )
-                return [
-                    TextContent(
-                        type="text",
-                        text=json.dumps(result, indent=2),
-                    )
-                ]
+                return ToolResult(
+                    content=[
+                        TextContent(
+                            type="text",
+                            text=json.dumps(result, indent=2),
+                        )
+                    ],
+                    triggers=[],
+                )
 
         try:
             result = entry["handler"](ctx, **(arguments or {}))
             if asyncio.iscoroutine(result):
                 result = await result
 
-            return [
-                TextContent(
-                    type="text",
-                    text=json.dumps(result, indent=2),
-                )
-            ]
+            # Extract triggers before serialization
+            triggers = []
+            if isinstance(result, dict):
+                triggers = result.pop("_triggers", [])
+
+            return ToolResult(
+                content=[
+                    TextContent(
+                        type="text",
+                        text=json.dumps(result, indent=2),
+                    )
+                ],
+                triggers=triggers,
+            )
         except Exception as e:
             logger.error(
                 "Error executing tool '%s': %s", name, e, exc_info=True
             )
             result = format_response(None, success=False, error=str(e))
-            return [
-                TextContent(
-                    type="text",
-                    text=json.dumps(result, indent=2),
-                )
-            ]
+            return ToolResult(
+                content=[
+                    TextContent(
+                        type="text",
+                        text=json.dumps(result, indent=2),
+                    )
+                ],
+                triggers=[],
+            )

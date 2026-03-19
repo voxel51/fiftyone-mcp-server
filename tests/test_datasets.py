@@ -154,8 +154,8 @@ class TestRegistry:
         """Test registry call for list_datasets."""
         result = await registry.call_tool("list_datasets", {})
 
-        assert len(result) == 1
-        data = json.loads(result[0].text)
+        assert len(result.content) == 1
+        data = json.loads(result.content[0].text)
         assert data["success"] is True
 
     @pytest.mark.asyncio
@@ -167,8 +167,8 @@ class TestRegistry:
             "load_dataset", {"name": test_dataset.name}
         )
 
-        assert len(result) == 1
-        data = json.loads(result[0].text)
+        assert len(result.content) == 1
+        data = json.loads(result.content[0].text)
         assert data["success"] is True
         assert data["data"]["name"] == test_dataset.name
 
@@ -179,8 +179,8 @@ class TestRegistry:
         """Test registry call without required name parameter."""
         result = await registry.call_tool("load_dataset", {})
 
-        assert len(result) == 1
-        data = json.loads(result[0].text)
+        assert len(result.content) == 1
+        data = json.loads(result.content[0].text)
         assert data["success"] is False
 
     @pytest.mark.asyncio
@@ -188,8 +188,8 @@ class TestRegistry:
         """Test registry call with unknown tool name."""
         result = await registry.call_tool("unknown_tool", {})
 
-        assert len(result) == 1
-        data = json.loads(result[0].text)
+        assert len(result.content) == 1
+        data = json.loads(result.content[0].text)
         assert data["success"] is False
         assert "Unknown tool" in data["error"]
 
