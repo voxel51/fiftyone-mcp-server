@@ -7,6 +7,17 @@ hydrated context with ``ctx.ops``, ``ctx.dataset``, etc. When
 called from stdio mode, ``ctx`` is ``None`` and a minimal context
 is built from the ``dataset_name`` argument.
 
+Execution follows two paths depending on whether a real context
+is available:
+
+* **App mode** (``ctx`` with ``ctx.trigger``): operators are
+  triggered through the connected App via ``ctx.trigger()``.
+  Any ``ctx.ops`` calls the operator makes reach the browser
+  natively.
+* **SDK mode** (``ctx`` is ``None``): operators are executed
+  headlessly via ``execute_or_delegate_operator()`` and the
+  result is returned directly.
+
 | Copyright 2017-2026, Voxel51, Inc.
 | `voxel51.com <https://voxel51.com/>`_
 |
@@ -295,9 +306,15 @@ async def execute_operator(
 ):
     """Executes a FiftyOne operator.
 
-    When ``ctx`` is a real :class:`ExecutionContext` (operator
-    mode), uses it directly. When ``ctx`` is ``None`` (stdio
-    mode), builds a minimal context from ``dataset_name``.
+    When ``ctx`` is available (App mode), the operator is
+    triggered through the connected browser via
+    ``ctx.trigger()``. This ensures that any ``ctx.ops`` calls
+    the operator makes (``set_view``, ``open_panel``, etc.)
+    reach the App natively.
+
+    When ``ctx`` is ``None`` (SDK mode), the operator is
+    executed headlessly via ``execute_or_delegate_operator()``
+    and the result is returned directly.
 
     Args:
         ctx: an optional
@@ -341,6 +358,18 @@ async def execute_operator(
                 delegation_target,
             )
 
+        # App mode: trigger through the connected browser
+        if ctx is not None and hasattr(ctx, "trigger"):
+            ctx.trigger(operator_uri, params or {})
+            return format_response(
+                {
+                    "operator_uri": operator_uri,
+                    "triggered": True,
+                    "message": ("Operator triggered via App context"),
+                }
+            )
+
+        # SDK mode: headless execution
         execution_result = await execute_or_delegate_operator(
             operator_uri,
             request_params,

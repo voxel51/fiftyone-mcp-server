@@ -7,6 +7,7 @@ Tests for operator tools.
 """
 
 import json
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -288,6 +289,82 @@ class TestRegistry:
         data = json.loads(result[0].text)
         assert data["success"] is False
         assert "Unknown tool" in data["error"]
+
+
+class TestAppModeExecution:
+    """Tests for App mode (ctx.trigger) execution path."""
+
+    @pytest.mark.asyncio
+    async def test_execute_with_ctx_triggers_operator(self):
+        """Test that execute_operator uses ctx.trigger() in App
+        mode."""
+        ctx = MagicMock()
+        ctx.request_params = {"dataset_name": "test"}
+
+        result = await execute_operator(
+            ctx,
+            "@voxel51/operators/edit_field_info",
+            params={"field_name": "tags"},
+        )
+
+        assert result["success"] is True
+        assert result["data"]["triggered"] is True
+
+        ctx.trigger.assert_called_once_with(
+            "@voxel51/operators/edit_field_info",
+            {"field_name": "tags"},
+        )
+
+    @pytest.mark.asyncio
+    async def test_execute_with_ctx_no_params(self):
+        """Test App mode with no params passes empty dict."""
+        ctx = MagicMock()
+        ctx.request_params = {"dataset_name": "test"}
+
+        result = await execute_operator(
+            ctx,
+            "@voxel51/operators/edit_field_info",
+        )
+
+        assert result["success"] is True
+        assert result["data"]["triggered"] is True
+
+        ctx.trigger.assert_called_once_with(
+            "@voxel51/operators/edit_field_info",
+            {},
+        )
+
+    @pytest.mark.asyncio
+    async def test_execute_nonexistent_with_ctx(self):
+        """Test that nonexistent operator errors even with
+        ctx."""
+        ctx = MagicMock()
+        ctx.request_params = {"dataset_name": "test"}
+
+        result = await execute_operator(
+            ctx,
+            "@nonexistent/operator",
+        )
+
+        assert result["success"] is False
+        assert "not found" in result["error"]
+        ctx.trigger.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_delegate_bypasses_trigger(self):
+        """Test that delegate=True uses delegation path, not
+        ctx.trigger()."""
+        ctx = MagicMock()
+        ctx.request_params = {"dataset_name": "test"}
+
+        result = await execute_operator(
+            ctx,
+            "@voxel51/operators/edit_field_info",
+            params={"field_name": "tags"},
+            delegate=True,
+        )
+
+        ctx.trigger.assert_not_called()
 
 
 class TestEdgeCases:

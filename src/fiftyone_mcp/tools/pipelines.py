@@ -2,6 +2,13 @@
 Pipeline execution and delegated operation tools for FiftyOne
 MCP server.
 
+Pipelines execute multiple operator stages sequentially.
+In App mode (real ``ctx``), each stage is triggered through
+``ctx.trigger()`` so that any ``ctx.ops`` calls the operator
+makes reach the connected browser. In SDK mode (``ctx`` is
+``None``), stages are executed headlessly via
+``execute_or_delegate_operator()``.
+
 | Copyright 2017-2026, Voxel51, Inc.
 | `voxel51.com <https://voxel51.com/>`_
 |
@@ -198,7 +205,9 @@ async def execute_pipeline(
                 stages, request_params, delegation_target
             )
 
-        return await _execute_pipeline_immediate(stages, request_params)
+        return await _execute_pipeline_immediate(
+            stages, request_params, ctx=ctx
+        )
 
     except Exception as e:
         logger.error("Failed to execute pipeline: %s", e)
@@ -210,16 +219,23 @@ async def execute_pipeline(
         )
 
 
-async def _execute_pipeline_immediate(stages, request_params):
+async def _execute_pipeline_immediate(stages, request_params, ctx=None):
     """Executes pipeline stages immediately and sequentially.
+
+    In App mode (``ctx`` with ``trigger``), each stage is
+    triggered through the connected browser. In SDK mode,
+    stages are executed headlessly.
 
     Args:
         stages: a list of stage dicts
         request_params: the base request params dict
+        ctx: an optional
+            :class:`fiftyone.operators.executor.ExecutionContext`
 
     Returns:
         a dict containing per-stage execution results
     """
+    has_trigger = ctx is not None and hasattr(ctx, "trigger")
     results = []
     active = True
     stages_failed = 0
@@ -246,31 +262,44 @@ async def _execute_pipeline_immediate(stages, request_params):
             continue
 
         try:
-            stage_params = dict(request_params)
-            stage_params["params"] = params
+            if has_trigger:
+                ctx.trigger(uri, params)
+                results.append(
+                    {
+                        "index": idx,
+                        "operator_uri": uri,
+                        "name": name,
+                        "success": True,
+                        "skipped": False,
+                        "triggered": True,
+                    }
+                )
+            else:
+                stage_params = dict(request_params)
+                stage_params["params"] = params
 
-            execution_result = await execute_or_delegate_operator(
-                uri,
-                stage_params,
-                exhaust=True,
-            )
+                execution_result = await execute_or_delegate_operator(
+                    uri,
+                    stage_params,
+                    exhaust=True,
+                )
 
-            execution_result.raise_exceptions()
+                execution_result.raise_exceptions()
 
-            results.append(
-                {
-                    "index": idx,
-                    "operator_uri": uri,
-                    "name": name,
-                    "success": True,
-                    "skipped": False,
-                    "result": (
-                        safe_serialize(execution_result.result)
-                        if execution_result
-                        else None
-                    ),
-                }
-            )
+                results.append(
+                    {
+                        "index": idx,
+                        "operator_uri": uri,
+                        "name": name,
+                        "success": True,
+                        "skipped": False,
+                        "result": (
+                            safe_serialize(execution_result.result)
+                            if execution_result
+                            else None
+                        ),
+                    }
+                )
 
         except Exception as e:
             active = False

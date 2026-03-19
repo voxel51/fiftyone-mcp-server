@@ -7,6 +7,7 @@ Tests for pipeline execution and delegated operation tools.
 """
 
 import json
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -192,6 +193,59 @@ class TestExecutePipeline:
         if result["success"]:
             stage_result = result["data"]["results"][0]
             assert stage_result["name"].startswith("stage_0_")
+
+
+class TestPipelineAppMode:
+    """Tests for pipeline App mode (ctx.trigger) execution."""
+
+    @pytest.mark.asyncio
+    async def test_pipeline_with_ctx_triggers_stages(self):
+        """Test that pipeline uses ctx.trigger() in App mode."""
+        ctx = MagicMock()
+        ctx.request_params = {"dataset_name": "test"}
+
+        result = await execute_pipeline(
+            ctx,
+            stages=[
+                {
+                    "operator_uri": (
+                        "@voxel51/operators/edit_field_info"
+                    ),
+                    "params": {"field_name": "tags"},
+                },
+                {
+                    "operator_uri": (
+                        "@voxel51/operators/clone_sample_field"
+                    ),
+                    "params": {"field_name": "tags"},
+                },
+            ],
+        )
+
+        assert result["success"] is True
+        data = result["data"]
+        assert data["stages_total"] == 2
+        assert data["stages_executed"] == 2
+        assert data["stages_failed"] == 0
+
+        assert ctx.trigger.call_count == 2
+        ctx.trigger.assert_any_call(
+            "@voxel51/operators/edit_field_info",
+            {"field_name": "tags"},
+        )
+
+        for stage_result in data["results"]:
+            assert stage_result["triggered"] is True
+
+    @pytest.mark.asyncio
+    async def test_pipeline_without_ctx_no_trigger(self):
+        """Test that pipeline without ctx does not trigger."""
+        result = await execute_pipeline(
+            None,
+            stages=[],
+        )
+
+        assert result["success"] is False
 
 
 class TestListDelegatedOperations:
