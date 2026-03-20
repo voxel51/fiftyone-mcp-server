@@ -21,6 +21,7 @@ from .tools import (
     aggregations,
     app_config,
     datasets,
+    operations,
     operators,
     pipelines,
     plugins,
@@ -45,6 +46,7 @@ def build_registry():
     """
     registry = ToolRegistry()
     datasets.register_tools(registry)
+    operations.register_tools(registry)
     operators.register_tools(registry)
     pipelines.register_tools(registry)
     plugins.register_tools(registry)

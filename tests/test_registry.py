@@ -206,6 +206,7 @@ class TestBuildRegistry:
             "get_session_info",
             "set_view",
             "clear_view",
+            "set_spaces",
             "count_values",
             "distinct",
             "bounds",
@@ -227,6 +228,34 @@ class TestBuildRegistry:
             "get_sidebar_groups",
             "set_sidebar_groups",
             "set_active_fields",
+            # Factory-generated ctx.ops tools
+            "reload_samples",
+            "reload_dataset",
+            "clear_selected_samples",
+            "clear_sidebar_filters",
+            "clear_all_stages",
+            "close_sample",
+            "show_sidebar",
+            "hide_sidebar",
+            "toggle_sidebar",
+            "clear_selected_labels",
+            "refresh_colors",
+            "clear_active_fields",
+            "open_panel",
+            "close_panel",
+            "set_selected_samples",
+            "show_samples",
+            "notify",
+            "set_group_slice",
+            "open_sample",
+            "set_selected_labels",
+            "set_progress",
+            "set_panel_state",
+            "set_panel_data",
+            "patch_panel_state",
+            "patch_panel_data",
+            "clear_panel_state",
+            "clear_panel_data",
         }
 
         assert expected.issubset(names), (
@@ -490,9 +519,14 @@ class TestBuildRegistryModes:
     """Tests for modes on the full built registry."""
 
     def test_app_tools_tagged(self):
-        """Test that session App tools are tagged APP."""
+        """Test that operations tools are tagged APP."""
         registry = build_registry()
-        for name in ("set_view", "clear_view", "get_session_info"):
+        app_tools = [
+            "set_view", "clear_view", "get_session_info",
+            "set_spaces", "reload_samples", "open_panel",
+            "notify", "set_panel_state",
+        ]
+        for name in app_tools:
             entry = registry.get_tool(name)
             assert APP in entry["modes"], (
                 "%s should be tagged APP" % name
@@ -610,9 +644,14 @@ class TestToolRisk:
             )
 
     def test_app_tools_low_risk(self):
-        """Test that APP session tools are LOW risk."""
+        """Test that APP operations tools are LOW risk."""
         registry = build_registry()
-        for name in ("set_view", "clear_view", "get_session_info"):
+        app_tools = [
+            "set_view", "clear_view", "get_session_info",
+            "set_spaces", "reload_samples", "open_panel",
+            "notify", "set_panel_state",
+        ]
+        for name in app_tools:
             entry = registry.get_tool(name)
             assert entry["risk"] == LOW, (
                 "%s should be LOW risk" % name
