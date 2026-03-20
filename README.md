@@ -24,7 +24,7 @@
 
 ## What is the FiftyOne MCP Server?
 
-Enable Agents to explore datasets, execute operators, and build computer vision workflows through natural language. This server exposes FiftyOne's operator framework (80+ built-in operators) through 16 MCP tools.
+Enable Agents to explore datasets, execute operators, and control the FiftyOne App through natural language. This server exposes 45+ MCP tools across data operations, App UI control, and the full operator/plugin ecosystem.
 
 ```
 "List all my datasets"
@@ -36,14 +36,42 @@ The server starts with 50 built-in operators. Install plugins to expand function
 
 ## Available Tools
 
-| Category                  | Tools | Description                                  |
-| ------------------------- | ----- | -------------------------------------------- |
-| 📊 **Dataset Management** | 3     | List, load, and summarize datasets           |
-| ⚡ **Operator System**    | 5     | Execute any FiftyOne operator dynamically    |
-| 🔌 **Plugin Management**  | 5     | Discover and install FiftyOne plugins        |
-| 🖥️ **Session Management** | 3     | Control FiftyOne App for delegated execution |
+| Category                  | Tools | Description                                        |
+| ------------------------- | ----- | -------------------------------------------------- |
+| 📊 **Dataset Management** | 3     | List, load, and summarize datasets                 |
+| 🎯 **App Operations**     | 29    | Control the App UI (views, panels, selection, ...) |
+| ⚡ **Operator System**    | 3     | Discover and execute any FiftyOne operator         |
+| 🔄 **Pipelines**          | 2     | Run pipelines and manage delegated operations      |
+| 🔌 **Plugin Management**  | 5     | Discover, install, and manage plugins              |
+| 🖥️ **Session**            | 1     | Launch the FiftyOne App server                     |
+| 📈 **Aggregations**       | 8     | Count, distinct, bounds, mean, histogram, ...      |
+| 🧬 **Samples**            | 5     | Add, tag, untag, and set values on samples         |
+| 🗂️ **Schema**             | 2     | Inspect and modify dataset field schemas           |
+| 🎨 **App Config**         | 6     | Color scheme, sidebar groups, active fields        |
 
-**Design Philosophy:** Minimal tool count (16 tools), maximum flexibility (full operator & plugin ecosystem).
+### Tool modes
+
+45+ tools organized by runtime mode:
+
+- **SDK**: Data operations that work everywhere (datasets, aggregations, schema, samples, operators, plugins). No App connection needed.
+- **APP**: Controls the FiftyOne App UI in real time (set_view, open_panel, notify, select_samples, reload, and 25+ more). Requires a connected browser via `ctx.ops`.
+- **SESSION**: Bootstrap tools for starting a local App server (launch_app). Used from terminal environments.
+
+### Choosing your tools
+
+Which tools are available depends on how you integrate the server:
+
+| Integration             | Modes             | Use case                                                       |
+| ----------------------- | ----------------- | -------------------------------------------------------------- |
+| **FiftyOne App plugin** | `app` + `sdk`     | Agent panel inside the App (full UI control + data operations) |
+| **Terminal / CLI**      | `session` + `sdk` | Headless agent (launch the App, query data, execute operators) |
+
+### Tool risk levels
+
+Every tool is tagged with a risk level that your agent can use for auto-approval decisions:
+
+- **`LOW`** Safe to auto-execute without prompting (read-only queries, UI state changes)
+- **`OPERATOR`** Wraps a FiftyOne operator whose own severity should be checked before executing
 
 ## Quick Start
 
@@ -163,10 +191,10 @@ This downloads and runs the latest version automatically.
 ```
 "List all my datasets"
 "Load quickstart dataset and show summary"
-"What operators are available for managing samples?"
-"Set context to my dataset, then tag high-confidence samples"
+"Open the map panel and show me the embeddings"
+"Select samples with confidence above 0.9"
 "What plugins are available? Install the brain plugin"
-"Find similar images in my dataset"
+"Find near-duplicate images in my dataset"
 ```
 
 Claude will automatically discover operators and execute the appropriate tools.
