@@ -18,12 +18,12 @@ from collections import namedtuple
 
 from mcp.types import TextContent
 
-from .tools.utils import APP, SDK, format_response
-
+from .tools.utils import APP, LOW, SDK, format_response
 
 logger = logging.getLogger(__name__)
 
 _DEFAULT_MODES = frozenset({SDK})
+_DEFAULT_RISK = LOW
 
 ToolResult = namedtuple("ToolResult", ["content", "triggers"])
 
@@ -53,10 +53,12 @@ class ToolRegistry(object):
             handler: a callable ``(ctx, **kwargs) -> dict``
         """
         modes = getattr(handler, "_mcp_modes", _DEFAULT_MODES)
+        risk = getattr(handler, "_mcp_risk", _DEFAULT_RISK)
         self._tools[schema.name] = {
             "schema": schema,
             "handler": handler,
             "modes": modes,
+            "risk": risk,
         }
 
     def get_tool(self, name):

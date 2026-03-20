@@ -10,7 +10,6 @@ import logging
 
 import fiftyone.core.view as fov
 
-
 logger = logging.getLogger(__name__)
 
 # Runtime modes for MCP tools
@@ -18,9 +17,13 @@ SDK = "sdk"
 APP = "app"
 SESSION = "session"
 
+# Tool risk levels
+LOW = "low"
+OPERATOR = "operator"
 
-def mcp_tool(*modes):
-    """Tags an MCP tool with its supported runtime modes.
+
+def mcp_tool(*modes, risk=LOW):
+    """Tags an MCP tool with its supported runtime modes and risk level.
 
     A tool can support one or more modes:
 
@@ -33,11 +36,19 @@ def mcp_tool(*modes):
     available; the guard is handled centrally by the
     :class:`~fiftyone_mcp.registry.ToolRegistry`.
 
-    The modes are stored as ``fn._mcp_modes`` (a frozenset)
-    and read at registration time.
+    The ``risk`` level tells consumers how to handle the tool:
+
+    * ``LOW`` — Safe to auto-execute without prompting.
+    * ``OPERATOR`` — Invokes a FiftyOne operator; the consumer
+      should check the operator's own severity before executing.
+
+    The modes and risk are stored as ``fn._mcp_modes``
+    (a frozenset) and ``fn._mcp_risk`` (a string) and read
+    at registration time.
 
     Args:
         *modes: one or more of ``SDK``, ``APP``, ``SESSION``
+        risk (LOW): the tool's risk level — ``LOW`` or ``OPERATOR``
 
     Returns:
         a decorator
@@ -49,6 +60,7 @@ def mcp_tool(*modes):
 
     def decorator(fn):
         fn._mcp_modes = modes_set
+        fn._mcp_risk = risk
         return fn
 
     return decorator

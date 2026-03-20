@@ -15,7 +15,7 @@ from mcp.types import Tool
 
 from fiftyone_mcp.registry import ToolRegistry
 from fiftyone_mcp.server import build_registry
-from fiftyone_mcp.tools.utils import APP, SDK, SESSION, mcp_tool
+from fiftyone_mcp.tools.utils import APP, LOW, OPERATOR, SDK, SESSION, mcp_tool
 
 
 def _dummy_handler(ctx, **kwargs):
@@ -206,6 +206,7 @@ class TestBuildRegistry:
             "get_session_info",
             "set_view",
             "clear_view",
+            "set_spaces",
             "count_values",
             "distinct",
             "bounds",
@@ -227,6 +228,34 @@ class TestBuildRegistry:
             "get_sidebar_groups",
             "set_sidebar_groups",
             "set_active_fields",
+            # Factory-generated ctx.ops tools
+            "reload_samples",
+            "reload_dataset",
+            "clear_selected_samples",
+            "clear_sidebar_filters",
+            "clear_all_stages",
+            "close_sample",
+            "show_sidebar",
+            "hide_sidebar",
+            "toggle_sidebar",
+            "clear_selected_labels",
+            "refresh_colors",
+            "clear_active_fields",
+            "open_panel",
+            "close_panel",
+            "set_selected_samples",
+            "show_samples",
+            "notify",
+            "set_group_slice",
+            "open_sample",
+            "set_selected_labels",
+            "set_progress",
+            "set_panel_state",
+            "set_panel_data",
+            "patch_panel_state",
+            "patch_panel_data",
+            "clear_panel_state",
+            "clear_panel_data",
         }
 
         assert expected.issubset(names), (
@@ -490,9 +519,14 @@ class TestBuildRegistryModes:
     """Tests for modes on the full built registry."""
 
     def test_app_tools_tagged(self):
-        """Test that session App tools are tagged APP."""
+        """Test that operations tools are tagged APP."""
         registry = build_registry()
-        for name in ("set_view", "clear_view", "get_session_info"):
+        app_tools = [
+            "set_view", "clear_view", "get_session_info",
+            "set_spaces", "reload_samples", "open_panel",
+            "notify", "set_panel_state",
+        ]
+        for name in app_tools:
             entry = registry.get_tool(name)
             assert APP in entry["modes"], (
                 "%s should be tagged APP" % name
@@ -527,4 +561,98 @@ class TestBuildRegistryModes:
             entry = registry.get_tool(name)
             assert entry["modes"] == {SDK}, (
                 "%s should default to SDK" % name
+            )
+
+
+class TestToolRisk:
+    """Tests for the tool risk level metadata."""
+
+    def test_decorator_default_risk(self):
+        """Test that undecorated risk defaults to LOW."""
+        @mcp_tool(SDK)
+        def safe_fn(ctx):
+            pass
+
+        assert safe_fn._mcp_risk == LOW
+
+    def test_decorator_operator_risk(self):
+        """Test that risk=OPERATOR is stored on the function."""
+        @mcp_tool(SDK, APP, risk=OPERATOR)
+        def op_fn(ctx):
+            pass
+
+        assert op_fn._mcp_risk == OPERATOR
+
+    def test_registry_reads_risk(self):
+        """Test that registry stores the risk from the handler."""
+        @mcp_tool(SDK, risk=OPERATOR)
+        def op_handler(ctx):
+            return {"success": True, "data": None}
+
+        reg = ToolRegistry()
+        reg.register(
+            Tool(
+                name="op_tool",
+                description="op",
+                inputSchema={"type": "object", "properties": {}},
+            ),
+            op_handler,
+        )
+
+        entry = reg.get_tool("op_tool")
+        assert entry["risk"] == OPERATOR
+
+    def test_registry_default_risk(self):
+        """Test that registry defaults to LOW for plain handlers."""
+        reg = ToolRegistry()
+        reg.register(
+            Tool(
+                name="plain_tool",
+                description="plain",
+                inputSchema={"type": "object", "properties": {}},
+            ),
+            _dummy_handler,
+        )
+
+        entry = reg.get_tool("plain_tool")
+        assert entry["risk"] == LOW
+
+    def test_execute_operator_risk(self):
+        """Test that execute_operator is tagged OPERATOR risk."""
+        registry = build_registry()
+        entry = registry.get_tool("execute_operator")
+        assert entry["risk"] == OPERATOR
+
+    def test_execute_pipeline_risk(self):
+        """Test that execute_pipeline is tagged OPERATOR risk."""
+        registry = build_registry()
+        entry = registry.get_tool("execute_pipeline")
+        assert entry["risk"] == OPERATOR
+
+    def test_sdk_tools_low_risk(self):
+        """Test that read-only SDK tools default to LOW risk."""
+        registry = build_registry()
+        low_risk_tools = [
+            "list_datasets", "load_dataset", "list_operators",
+            "get_operator_schema", "get_field_schema",
+            "count_values", "distinct", "bounds",
+        ]
+        for name in low_risk_tools:
+            entry = registry.get_tool(name)
+            assert entry["risk"] == LOW, (
+                "%s should be LOW risk" % name
+            )
+
+    def test_app_tools_low_risk(self):
+        """Test that APP operations tools are LOW risk."""
+        registry = build_registry()
+        app_tools = [
+            "set_view", "clear_view", "get_session_info",
+            "set_spaces", "reload_samples", "open_panel",
+            "notify", "set_panel_state",
+        ]
+        for name in app_tools:
+            entry = registry.get_tool(name)
+            assert entry["risk"] == LOW, (
+                "%s should be LOW risk" % name
             )
