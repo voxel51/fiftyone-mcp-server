@@ -24,8 +24,14 @@ from fiftyone.operators.executor import (
 from mcp.types import Tool
 
 from .operators import _get_request_params
-from .utils import APP, SDK, format_response, mcp_tool, safe_serialize
-
+from .utils import (
+    APP,
+    OPERATOR,
+    SDK,
+    format_response,
+    mcp_tool,
+    safe_serialize,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -164,7 +170,7 @@ def _validate_pipeline_stages(stages):
     return None
 
 
-@mcp_tool(SDK, APP)
+@mcp_tool(SDK, APP, risk=OPERATOR)
 async def execute_pipeline(
     ctx,
     stages,
