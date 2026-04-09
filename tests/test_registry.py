@@ -656,3 +656,165 @@ class TestToolRisk:
             assert entry["risk"] == LOW, (
                 "%s should be LOW risk" % name
             )
+
+
+class TestResponseSizeCap:
+    """Tests for the registry-level response size cap."""
+
+    def _make_large_tool_registry(self, size, max_response_chars=50_000):
+        """Returns a registry capped at ``max_response_chars`` with a tool
+        that returns a response of roughly ``size`` chars."""
+
+        @mcp_tool(SDK)
+        def large_tool(ctx):
+            return {"success": True, "data": {"x": "y" * size}}
+
+        reg = ToolRegistry(max_response_chars=max_response_chars)
+        reg.register(
+            Tool(
+                name="large_tool",
+                description="large",
+                inputSchema={"type": "object", "properties": {}},
+            ),
+            large_tool,
+        )
+        return reg
+
+    @pytest.mark.asyncio
+    async def test_oversized_response_returns_truncation_error(self):
+        """Response exceeding cap returns a structured error."""
+        reg = self._make_large_tool_registry(200_000, max_response_chars=50_000)
+        result = await reg.call_tool("large_tool", {})
+        data = json.loads(result.content[0].text)
+        assert data["success"] is False
+        assert data.get("_truncated") is True
+
+    @pytest.mark.asyncio
+    async def test_truncated_response_includes_original_size(self):
+        """Truncated response reports the original response size."""
+        reg = self._make_large_tool_registry(200_000, max_response_chars=50_000)
+        result = await reg.call_tool("large_tool", {})
+        data = json.loads(result.content[0].text)
+        assert "_original_size" in data
+        assert data["_original_size"] > 50_000
+
+    @pytest.mark.asyncio
+    async def test_truncated_response_includes_hint(self):
+        """Truncated response includes an error message."""
+        reg = self._make_large_tool_registry(200_000, max_response_chars=50_000)
+        result = await reg.call_tool("large_tool", {})
+        data = json.loads(result.content[0].text)
+        assert "error" in data
+        assert len(data["error"]) > 0
+
+    @pytest.mark.asyncio
+    async def test_truncated_response_is_itself_valid_json(self):
+        """The truncated response is valid JSON."""
+        reg = self._make_large_tool_registry(200_000, max_response_chars=50_000)
+        result = await reg.call_tool("large_tool", {})
+        data = json.loads(result.content[0].text)
+        assert isinstance(data, dict)
+
+    @pytest.mark.asyncio
+    async def test_normal_response_passes_through(self):
+        """Responses under the cap are returned unchanged."""
+
+        @mcp_tool(SDK)
+        def small_tool(ctx):
+            return {"success": True, "data": {"msg": "hello"}}
+
+        reg = ToolRegistry(max_response_chars=50_000)
+        reg.register(
+            Tool(
+                name="small_tool",
+                description="small",
+                inputSchema={"type": "object", "properties": {}},
+            ),
+            small_tool,
+        )
+        result = await reg.call_tool("small_tool", {})
+        data = json.loads(result.content[0].text)
+        assert data["success"] is True
+        assert data["data"]["msg"] == "hello"
+        assert "_truncated" not in data
+
+    @pytest.mark.asyncio
+    async def test_cap_is_configurable(self):
+        """max_response_chars controls the truncation threshold."""
+        reg_tight = self._make_large_tool_registry(
+            10_000, max_response_chars=5_000
+        )
+        result = await reg_tight.call_tool("large_tool", {})
+        data = json.loads(result.content[0].text)
+        assert data.get("_truncated") is True
+
+        reg_loose = self._make_large_tool_registry(
+            10_000, max_response_chars=100_000
+        )
+        result = await reg_loose.call_tool("large_tool", {})
+        data = json.loads(result.content[0].text)
+        assert data["success"] is True
+        assert "_truncated" not in data
+
+    @pytest.mark.asyncio
+    async def test_default_cap_is_200k(self):
+        """Default max_response_chars aligns with the observed Claude Code limit."""
+        from fiftyone_mcp.registry import _DEFAULT_MAX_RESPONSE_CHARS
+
+        assert _DEFAULT_MAX_RESPONSE_CHARS == 200_000
+        assert ToolRegistry()._max_response_chars == 200_000
+
+    @pytest.mark.asyncio
+    async def test_allow_large_bypasses_cap(self):
+        """_allow_large=True in the response bypasses the size cap."""
+
+        @mcp_tool(SDK)
+        def verbose_tool(ctx):
+            result = {"success": True, "data": {"x": "y" * 100_000}}
+            result["_allow_large"] = True
+            return result
+
+        reg = ToolRegistry(max_response_chars=50_000)
+        reg.register(
+            Tool(
+                name="verbose_tool",
+                description="explicitly large",
+                inputSchema={"type": "object", "properties": {}},
+            ),
+            verbose_tool,
+        )
+        result = await reg.call_tool("verbose_tool", {})
+        data = json.loads(result.content[0].text)
+        assert data["success"] is True
+        assert "_truncated" not in data
+
+    @pytest.mark.asyncio
+    async def test_allow_large_key_not_visible_to_agent(self):
+        """_allow_large is extracted by the registry, not returned to agent."""
+
+        @mcp_tool(SDK)
+        def verbose_tool(ctx):
+            result = {"success": True, "data": {"msg": "ok"}}
+            result["_allow_large"] = True
+            return result
+
+        reg = ToolRegistry(max_response_chars=50_000)
+        reg.register(
+            Tool(
+                name="verbose_tool2",
+                description="signal test",
+                inputSchema={"type": "object", "properties": {}},
+            ),
+            verbose_tool,
+        )
+        result = await reg.call_tool("verbose_tool2", {})
+        data = json.loads(result.content[0].text)
+        assert "_allow_large" not in data
+
+    @pytest.mark.asyncio
+    async def test_truncation_error_includes_tool_name(self):
+        """Truncated response error message names the specific tool."""
+        reg = self._make_large_tool_registry(200_000, max_response_chars=50_000)
+        result = await reg.call_tool("large_tool", {})
+        data = json.loads(result.content[0].text)
+        assert "large_tool" in data["error"]

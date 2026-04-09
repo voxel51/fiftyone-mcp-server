@@ -131,7 +131,16 @@ def dataset_summary(ctx, name):
                 if hasattr(dataset, "count_values"):
                     counts = dataset.count_values(field_name)
                     if counts and len(counts) < 100:
-                        summary["value_counts"][field_name] = dict(counts)
+                        summary["value_counts"][field_name] = {
+                            (
+                                k
+                                if isinstance(
+                                    k, (str, int, float, bool, type(None))
+                                )
+                                else str(k)
+                            ): v
+                            for k, v in counts.items()
+                        }
             except Exception:
                 pass
 

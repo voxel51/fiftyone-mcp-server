@@ -24,6 +24,7 @@ logger = logging.getLogger(__name__)
 
 _DEFAULT_MODES = frozenset({SDK})
 _DEFAULT_RISK = LOW
+_DEFAULT_MAX_RESPONSE_CHARS = 200_000
 
 ToolResult = namedtuple("ToolResult", ["content", "triggers"])
 
@@ -42,8 +43,19 @@ class ToolRegistry(object):
     not need to check for ``ctx``.
     """
 
-    def __init__(self):
+    def __init__(self, max_response_chars=_DEFAULT_MAX_RESPONSE_CHARS):
+        """Initializes the tool registry.
+
+        Args:
+            max_response_chars (200000): maximum response size in
+                characters. Responses larger than this are replaced
+                with a structured error. Tune this to your model's
+                context window — Claude Code's ceiling is 500,000
+                chars; the default aligns with the observed ~200K
+                char limit for most deployments.
+        """
         self._tools = {}
+        self._max_response_chars = max_response_chars
 
     def register(self, schema, handler):
         """Registers a tool.
@@ -164,18 +176,35 @@ class ToolRegistry(object):
             if asyncio.iscoroutine(result):
                 result = await result
 
-            # Extract triggers before serialization
+            # Extract out-of-band signals before serialization
             triggers = []
+            allow_large = False
             if isinstance(result, dict):
                 triggers = result.pop("_triggers", [])
+                allow_large = result.pop("_allow_large", False)
+
+            text = json.dumps(result, indent=2)
+            if len(text) > self._max_response_chars and not allow_large:
+                logger.warning(
+                    "Tool '%s' response too large (%d chars), truncating",
+                    name,
+                    len(text),
+                )
+                result = format_response(
+                    None,
+                    success=False,
+                    error=(
+                        "Tool '%s' response too large (%d chars). "
+                        "Use more specific parameters to reduce "
+                        "the response size." % (name, len(text))
+                    ),
+                    _truncated=True,
+                    _original_size=len(text),
+                )
+                text = json.dumps(result, indent=2)
 
             return ToolResult(
-                content=[
-                    TextContent(
-                        type="text",
-                        text=json.dumps(result, indent=2),
-                    )
-                ],
+                content=[TextContent(type="text", text=text)],
                 triggers=triggers,
             )
         except Exception as e:
