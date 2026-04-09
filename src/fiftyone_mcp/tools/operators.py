@@ -48,6 +48,136 @@ from .utils import (
 
 logger = logging.getLogger(__name__)
 
+_PROPERTY_STRIP = frozenset(
+    {"choices", "invalid", "error_message", "on_change"}
+)
+
+_VIEW_KEEP = frozenset({"name", "label", "description", "caption", "choices"})
+
+_VIEW_NESTED_KEEP = {
+    "OneOfView": frozenset({"oneof"}),
+    "ListView": frozenset({"items"}),
+    "TupleView": frozenset({"items"}),
+}
+
+_CHOICE_KEEP = frozenset({"value", "label", "description"})
+
+_MAX_CHOICES = 20
+
+
+def _strip_view(view):
+    if not isinstance(view, dict):
+        return view
+
+    view_name = view.get("name")
+    keep = _VIEW_KEEP | _VIEW_NESTED_KEEP.get(view_name, frozenset())
+    result = {k: v for k, v in view.items() if k in keep}
+
+    if "choices" in result and isinstance(result["choices"], list):
+        choices = result["choices"]
+        total = len(choices)
+        if total > _MAX_CHOICES:
+            choices = choices[:_MAX_CHOICES]
+            result["_choices_truncated"] = True
+            result["_total_choices"] = total
+        result["choices"] = [
+            (
+                {k: v for k, v in c.items() if k in _CHOICE_KEEP}
+                if isinstance(c, dict)
+                else c
+            )
+            for c in choices
+        ]
+
+    for field in ("oneof", "items"):
+        if field in result:
+            nested = result[field]
+            if isinstance(nested, list):
+                result[field] = [_strip_view(v) for v in nested]
+            elif isinstance(nested, dict):
+                result[field] = _strip_view(nested)
+
+    return result
+
+
+def _strip_type(type_obj):
+    if not isinstance(type_obj, dict):
+        return type_obj
+
+    result = {}
+    for k, v in type_obj.items():
+        if k == "properties" and isinstance(v, dict):
+            result[k] = {
+                name: _strip_property(prop) for name, prop in v.items()
+            }
+        elif k in ("element_type", "key_type", "value_type") and isinstance(
+            v, dict
+        ):
+            result[k] = _strip_type(v)
+        elif k == "types" and isinstance(v, list):
+            result[k] = [
+                _strip_type(t) if isinstance(t, dict) else t for t in v
+            ]
+        elif k == "items":
+            if isinstance(v, list):
+                result[k] = [
+                    _strip_type(t) if isinstance(t, dict) else t for t in v
+                ]
+            elif isinstance(v, dict):
+                result[k] = _strip_type(v)
+            else:
+                result[k] = v
+        else:
+            result[k] = v
+
+    return result
+
+
+def _strip_property(prop):
+    if not isinstance(prop, dict):
+        return prop
+
+    result = {}
+    for k, v in prop.items():
+        if k in _PROPERTY_STRIP:
+            continue
+        elif k == "type" and isinstance(v, dict):
+            result[k] = _strip_type(v)
+        elif k == "view" and isinstance(v, dict):
+            result[k] = _strip_view(v)
+        else:
+            result[k] = v
+
+    return result
+
+
+def _strip_schema(schema):
+    """Strips UI-only metadata from a serialized operator schema.
+
+    Removes rendering metadata (component props, layout hints,
+    event handlers, Plotly config, table column definitions)
+    while preserving all agent-relevant information: parameter
+    names, types, required flags, labels, descriptions, choices
+    (capped at 20 items).
+
+    Args:
+        schema: a serialized schema dict from
+            ``Property.to_json()``
+
+    Returns:
+        a filtered schema dict
+    """
+    if not isinstance(schema, dict):
+        return schema
+
+    if "type" in schema:
+        return _strip_property(schema)
+
+    if schema.get("name") == "Object" and "properties" in schema:
+        return _strip_type(schema)
+
+    return schema
+
 
 def _build_dependency_error_response(error, operator_uri):
     """Builds a structured error response for missing deps.
@@ -184,11 +314,19 @@ def list_operators(ctx, builtin_only=None, operator_type=None):
 
 
 @mcp_tool(SDK)
-def get_operator_schema(ctx, operator_uri, params=None, dataset_name=None):
+def get_operator_schema(
+    ctx, operator_uri, params=None, dataset_name=None, verbose=False
+):
     """Gets the input schema for a specific operator.
 
-    When ``params`` is provided, the values are injected into the
-    execution context before calling ``resolve_input()``.
+    By default (``verbose=False``) returns a filtered schema
+    with UI-only metadata stripped (component props, layout
+    hints, event handlers, Plotly configs, table columns).
+    Choices are capped at 20 items. Pass ``verbose=True`` to
+    get the raw unfiltered schema.
+
+    When ``params`` is provided, the values are injected into
+    the execution context before calling ``resolve_input()``.
 
     Args:
         ctx: an optional
@@ -197,6 +335,8 @@ def get_operator_schema(ctx, operator_uri, params=None, dataset_name=None):
         params (None): an optional dict of parameter values
         dataset_name (None): an optional dataset name (used when
             ``ctx`` is None)
+        verbose (False): if True, return the full unfiltered
+            schema; if False, strip UI-only metadata
 
     Returns:
         a dict containing the operator's input schema
@@ -233,7 +373,10 @@ def get_operator_schema(ctx, operator_uri, params=None, dataset_name=None):
         input_property = operator.resolve_input(exec_ctx)
         schema = input_property.to_json() if input_property else {}
 
-        return format_response(
+        if not verbose:
+            schema = _strip_schema(schema)
+
+        result = format_response(
             {
                 "operator_uri": operator_uri,
                 "operator_label": operator.config.label,
@@ -241,6 +384,11 @@ def get_operator_schema(ctx, operator_uri, params=None, dataset_name=None):
                 "input_schema": schema,
             }
         )
+
+        if verbose:
+            result["_allow_large"] = True
+
+        return result
 
     except Exception as e:
         logger.error(
@@ -471,16 +619,18 @@ def register_tools(registry):
         Tool(
             name="get_operator_schema",
             description=(
-                "Get the dynamic input schema for a specific "
-                "operator. Schemas are context-aware and "
-                "change based on the current dataset/view/"
-                "selection. Use this AFTER list_operators to "
-                "understand what parameters an operator "
-                "accepts. For dynamic operators, pass "
-                "'params' with partial values to resolve "
-                "fields that depend on earlier selections. "
-                "Requires either an execution context or "
-                "dataset_name."
+                "Get the input schema for a specific operator. "
+                "Returns a filtered schema by default (UI-only "
+                "metadata stripped, choices capped at 20). Pass "
+                "verbose=true only if you need the raw schema. "
+                "Schemas are context-aware and change based on "
+                "the current dataset/view/selection. Use this "
+                "AFTER list_operators to understand what "
+                "parameters an operator accepts. For dynamic "
+                "operators, pass 'params' with partial values to "
+                "resolve fields that depend on earlier "
+                "selections. Requires either an execution "
+                "context or dataset_name."
             ),
             inputSchema={
                 "type": "object",
@@ -506,6 +656,15 @@ def register_tools(registry):
                             "resolution (used when no "
                             "execution context is available)"
                         ),
+                    },
+                    "verbose": {
+                        "type": "boolean",
+                        "description": (
+                            "If true, return the full "
+                            "unfiltered schema. Default "
+                            "false strips UI-only metadata."
+                        ),
+                        "default": False,
                     },
                 },
                 "required": ["operator_uri"],

@@ -140,6 +140,52 @@ class TestDatasetSummary:
         assert "filepath" in fields
 
 
+class TestDatasetSummarySerializability:
+    """Tests that dataset_summary output is always JSON-serializable."""
+
+    def test_datetime_field_keys_are_serialized(self):
+        """count_values on a DateTimeField returns datetime keys.
+
+        Before the fix, json.dumps would raise
+        ``TypeError: keys must be str, int, float, bool or None, not datetime``.
+        After the fix all keys are coerced to str.
+        """
+        from datetime import datetime
+
+        dataset_name = "mcp_test_datetime_serialization"
+        if fo.dataset_exists(dataset_name):
+            fo.delete_dataset(dataset_name)
+
+        try:
+            dataset = fo.Dataset(dataset_name)
+            dataset.add_sample_field("captured_at", fo.DateTimeField)
+            samples = [
+                fo.Sample(
+                    filepath=f"img_{i}.jpg",
+                    captured_at=datetime(2024, 1, i + 1),
+                )
+                for i in range(3)
+            ]
+            dataset.add_samples(samples)
+
+            result = dataset_summary(None, dataset_name)
+
+            assert result["success"] is True
+            # Must not raise
+            serialized = json.dumps(result)
+            assert serialized is not None
+            # Keys in value_counts must be strings
+            counts = result["data"].get("value_counts", {})
+            for field_counts in counts.values():
+                for k in field_counts:
+                    assert isinstance(
+                        k, (str, int, float, bool, type(None))
+                    ), f"Non-serializable key: {k!r}"
+        finally:
+            if fo.dataset_exists(dataset_name):
+                fo.delete_dataset(dataset_name)
+
+
 class TestRegistry:
     """Integration tests using ToolRegistry."""
 

@@ -18,6 +18,7 @@ from fiftyone_mcp.tools.operators import (
     get_operator_schema,
     execute_operator,
     register_tools,
+    _strip_schema,
 )
 
 
@@ -365,6 +366,292 @@ class TestAppModeExecution:
         )
 
         ctx.trigger.assert_not_called()
+
+
+class TestSchemaFilter:
+    """Tests for the schema summary filter (_strip_schema)."""
+
+    def test_strip_removes_view_base_fields(self):
+        """UI-only base View fields are stripped."""
+        schema = {
+            "type": {"name": "String"},
+            "required": True,
+            "view": {
+                "name": "FieldView",
+                "label": "My Label",
+                "description": "My desc",
+                "space": 12,
+                "read_only": False,
+                "component": "CustomWidget",
+                "componentsProps": {"foo": 1},
+                "container": {"type": "paper"},
+            },
+        }
+        result = _strip_schema(schema)
+        view = result["view"]
+        assert view["label"] == "My Label"
+        assert view["description"] == "My desc"
+        assert "space" not in view
+        assert "read_only" not in view
+        assert "component" not in view
+        assert "componentsProps" not in view
+        assert "container" not in view
+
+    def test_strip_removes_property_level_fields(self):
+        """Deprecated and UI-state Property fields are stripped."""
+        schema = {
+            "type": {"name": "String"},
+            "required": True,
+            "default": "foo",
+            "choices": None,
+            "invalid": False,
+            "error_message": "some error",
+            "on_change": "@op/uri",
+            "view": {"name": "View"},
+        }
+        result = _strip_schema(schema)
+        assert "choices" not in result
+        assert "invalid" not in result
+        assert "error_message" not in result
+        assert "on_change" not in result
+        assert result["required"] is True
+        assert result["default"] == "foo"
+
+    def test_strip_keeps_type_semantic_fields(self):
+        """Type constraints (min, max, values, etc.) are preserved."""
+        schema = {
+            "type": {
+                "name": "Number",
+                "min": 0,
+                "max": 100,
+                "int": True,
+                "float": False,
+            },
+            "required": False,
+        }
+        result = _strip_schema(schema)
+        t = result["type"]
+        assert t["min"] == 0
+        assert t["max"] == 100
+        assert t["int"] is True
+        assert t["float"] is False
+
+    def test_strip_truncates_choices_over_limit(self):
+        """Choices lists > 20 are truncated with metadata."""
+        choices = [
+            {"value": str(i), "label": f"Label {i}", "space": 4}
+            for i in range(25)
+        ]
+        schema = {
+            "type": {"name": "String"},
+            "view": {"name": "Dropdown", "choices": choices},
+        }
+        result = _strip_schema(schema)
+        view = result["view"]
+        assert len(view["choices"]) == 20
+        assert view["_choices_truncated"] is True
+        assert view["_total_choices"] == 25
+
+    def test_strip_keeps_choices_under_limit(self):
+        """Choices lists <= 20 are not truncated."""
+        choices = [
+            {"value": str(i), "label": f"Label {i}"}
+            for i in range(15)
+        ]
+        schema = {
+            "type": {"name": "String"},
+            "view": {"name": "Dropdown", "choices": choices},
+        }
+        result = _strip_schema(schema)
+        view = result["view"]
+        assert len(view["choices"]) == 15
+        assert "_choices_truncated" not in view
+
+    def test_strip_keeps_semantic_choice_fields(self):
+        """Choices keep value, label, description — strip UI fields."""
+        choices = [
+            {
+                "value": "cat",
+                "label": "Cat",
+                "description": "A feline",
+                "space": 12,
+                "read_only": False,
+                "componentsProps": {},
+            }
+        ]
+        schema = {
+            "type": {"name": "String"},
+            "view": {"name": "Dropdown", "choices": choices},
+        }
+        result = _strip_schema(schema)
+        choice = result["view"]["choices"][0]
+        assert choice == {
+            "value": "cat",
+            "label": "Cat",
+            "description": "A feline",
+        }
+
+    def test_allowlist_strips_unknown_view_fields(self):
+        """Any view field not in the allowlist is stripped automatically.
+
+        Verifies the allowlist approach: new UI-only fields added by
+        future FiftyOne releases are stripped without code changes.
+        """
+        schema = {
+            "type": {"name": "String"},
+            "view": {
+                "name": "SomeNewView",
+                "label": "My field",
+                "description": "desc",
+                "future_ui_field": "some_value",
+                "another_new_field": {"nested": True},
+            },
+        }
+        result = _strip_schema(schema)
+        view = result["view"]
+        assert view["label"] == "My field"
+        assert view["description"] == "desc"
+        assert "future_ui_field" not in view
+        assert "another_new_field" not in view
+
+    def test_strip_loader_view(self):
+        """LoaderView-specific UI fields are stripped."""
+        schema = {
+            "type": {"name": "String"},
+            "view": {
+                "name": "LoaderView",
+                "label": "Loading",
+                "operator": "@voxel51/operators/something",
+                "params": {"key": "val"},
+                "placeholder_view": {"name": "View", "label": "..."},
+                "dependencies": ["field_a"],
+            },
+        }
+        result = _strip_schema(schema)
+        view = result["view"]
+        assert view["label"] == "Loading"
+        assert "operator" not in view
+        assert "params" not in view
+        assert "placeholder_view" not in view
+        assert "dependencies" not in view
+
+    def test_strip_plotly_view(self):
+        """PlotlyView data/config/layout are stripped."""
+        schema = {
+            "type": {"name": "Object", "properties": {}},
+            "view": {
+                "name": "PlotlyView",
+                "label": "Chart",
+                "data": [{"x": [1, 2], "type": "scatter"}],
+                "config": {"displayModeBar": False},
+                "layout": {"title": "My Chart"},
+            },
+        }
+        result = _strip_schema(schema)
+        view = result["view"]
+        assert view["label"] == "Chart"
+        assert "data" not in view
+        assert "config" not in view
+        assert "layout" not in view
+
+    def test_strip_recurses_into_object_properties(self):
+        """Nested Object properties are also filtered."""
+        schema = {
+            "type": {
+                "name": "Object",
+                "properties": {
+                    "nested": {
+                        "type": {"name": "String"},
+                        "invalid": True,
+                        "error_message": "err",
+                        "view": {
+                            "name": "View",
+                            "label": "Nested",
+                            "space": 6,
+                            "componentsProps": {"x": 1},
+                        },
+                    }
+                },
+            }
+        }
+        result = _strip_schema(schema)
+        nested = result["type"]["properties"]["nested"]
+        assert "invalid" not in nested
+        assert "error_message" not in nested
+        assert nested["view"]["label"] == "Nested"
+        assert "space" not in nested["view"]
+        assert "componentsProps" not in nested["view"]
+
+    def test_strip_bare_object_schema(self):
+        """Bare Object (no wrapping Property) is also handled."""
+        schema = {
+            "name": "Object",
+            "properties": {
+                "field": {
+                    "type": {"name": "Boolean"},
+                    "invalid": False,
+                    "view": {"name": "SwitchView", "space": 3},
+                }
+            },
+        }
+        result = _strip_schema(schema)
+        assert result["name"] == "Object"
+        field = result["properties"]["field"]
+        assert "invalid" not in field
+        assert "space" not in field["view"]
+
+    def test_verbose_false_schema_is_smaller(self, test_dataset):
+        """Summary schema is smaller than verbose schema."""
+        summary = get_operator_schema(
+            None,
+            "@voxel51/operators/edit_field_info",
+            dataset_name=test_dataset.name,
+            verbose=False,
+        )
+        full = get_operator_schema(
+            None,
+            "@voxel51/operators/edit_field_info",
+            dataset_name=test_dataset.name,
+            verbose=True,
+        )
+        assert summary["success"] is True
+        assert full["success"] is True
+        summary_len = len(json.dumps(summary["data"]["input_schema"]))
+        full_len = len(json.dumps(full["data"]["input_schema"]))
+        assert full_len >= summary_len
+
+    def test_summary_is_json_serializable(self, test_dataset):
+        """Summary mode result is always JSON-serializable."""
+        result = get_operator_schema(
+            None,
+            "@voxel51/operators/edit_field_info",
+            dataset_name=test_dataset.name,
+        )
+        assert result["success"] is True
+        serialized = json.dumps(result)
+        assert serialized is not None
+
+    def test_verbose_true_sets_allow_large_signal(self, test_dataset):
+        """verbose=True sets _allow_large so the registry skips the cap."""
+        result = get_operator_schema(
+            None,
+            "@voxel51/operators/edit_field_info",
+            dataset_name=test_dataset.name,
+            verbose=True,
+        )
+        assert result["success"] is True
+        assert result.get("_allow_large") is True
+
+    def test_verbose_false_does_not_set_allow_large(self, test_dataset):
+        """verbose=False (default) does not set _allow_large."""
+        result = get_operator_schema(
+            None,
+            "@voxel51/operators/edit_field_info",
+            dataset_name=test_dataset.name,
+            verbose=False,
+        )
+        assert result["success"] is True
+        assert "_allow_large" not in result
 
 
 class TestEdgeCases:

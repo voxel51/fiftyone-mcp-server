@@ -38,13 +38,23 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
-def build_registry():
+def build_registry(config=None):
     """Builds the tool registry with all MCP tools.
+
+    Args:
+        config (None): optional config dict from ``settings.json``
 
     Returns:
         a :class:`ToolRegistry` instance with all tools registered
     """
-    registry = ToolRegistry()
+    server_config = (config or {}).get("server", {})
+    max_response_chars = server_config.get("max_response_chars", None)
+
+    registry = (
+        ToolRegistry(max_response_chars=max_response_chars)
+        if max_response_chars is not None
+        else ToolRegistry()
+    )
     datasets.register_tools(registry)
     operations.register_tools(registry)
     operators.register_tools(registry)
@@ -82,7 +92,7 @@ async def main():
     logger.info("Starting %s server...", server_name)
 
     server = Server(server_name)
-    registry = build_registry()
+    registry = build_registry(config=config)
 
     @server.list_tools()
     async def list_tools_handler():
