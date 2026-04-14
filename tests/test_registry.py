@@ -203,7 +203,7 @@ class TestBuildRegistry:
             "enable_plugin",
             "disable_plugin",
             "launch_app",
-            "get_session_info",
+            "get_context_info",
             "set_view",
             "clear_view",
             "set_spaces",
@@ -522,7 +522,7 @@ class TestBuildRegistryModes:
         """Test that operations tools are tagged APP."""
         registry = build_registry()
         app_tools = [
-            "set_view", "clear_view", "get_session_info",
+            "set_view", "clear_view", "get_context_info",
             "set_spaces", "reload_samples", "open_panel",
             "notify", "set_panel_state",
         ]
@@ -647,7 +647,7 @@ class TestToolRisk:
         """Test that APP operations tools are LOW risk."""
         registry = build_registry()
         app_tools = [
-            "set_view", "clear_view", "get_session_info",
+            "set_view", "clear_view", "get_context_info",
             "set_spaces", "reload_samples", "open_panel",
             "notify", "set_panel_state",
         ]

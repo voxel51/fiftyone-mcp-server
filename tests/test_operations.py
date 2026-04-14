@@ -15,7 +15,7 @@ from fiftyone_mcp.registry import ToolRegistry
 from fiftyone_mcp.tools.operations import (
     _OPS,
     _make_ops_handler,
-    get_session_info,
+    get_context_info,
     set_view,
     clear_view,
     set_spaces,
@@ -23,17 +23,17 @@ from fiftyone_mcp.tools.operations import (
 )
 
 
-class TestGetSessionInfo:
-    """Tests for get_session_info tool."""
+class TestGetContextInfo:
+    """Tests for get_context_info tool."""
 
-    def test_get_session_info_no_context(self):
-        """Test get_session_info with ctx=None.
+    def test_get_context_info_no_context(self):
+        """Test get_context_info with ctx=None.
 
         When called via the registry, the APP guard returns an
         error before the handler runs.  Calling directly with
         None exercises the getattr fallback.
         """
-        result = get_session_info(None)
+        result = get_context_info(None)
         assert result["success"] is True
         assert "active" in result["data"]
 
@@ -149,7 +149,7 @@ class TestRegistry:
     def test_explicit_tools_registered(self, registry):
         """Test that explicit tools are registered."""
         for name in (
-            "get_session_info",
+            "get_context_info",
             "set_view",
             "clear_view",
             "set_spaces",
@@ -176,12 +176,12 @@ class TestRegistry:
             )
 
     @pytest.mark.asyncio
-    async def test_registry_get_session_info(self, registry):
+    async def test_registry_get_context_info(self, registry):
         ctx = MagicMock()
         ctx.dataset = None
         ctx.view = None
         result = await registry.call_tool(
-            "get_session_info", {}, ctx=ctx
+            "get_context_info", {}, ctx=ctx
         )
         assert len(result.content) == 1
         data = json.loads(result.content[0].text)

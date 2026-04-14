@@ -3,7 +3,7 @@ App operations tools for FiftyOne MCP server.
 
 Exposes ``ctx.ops`` methods as individual MCP tools so that
 agents can control the FiftyOne App UI directly.  Enhanced
-tools (``set_view``, ``clear_view``, ``get_session_info``,
+tools (``set_view``, ``clear_view``, ``get_context_info``,
 ``set_spaces``) are hand-written; everything else is
 factory-generated from the ``_OPS`` configuration list.
 
@@ -344,7 +344,7 @@ def _register_ops_tools(registry):
 
 
 @mcp_tool(APP)
-def get_session_info(ctx):
+def get_context_info(ctx):
     """Gets information about the current state.
 
     When an execution context is available, reads dataset and view
@@ -546,15 +546,15 @@ def register_tools(registry):
     """
     registry.register(
         Tool(
-            name="get_session_info",
+            name="get_context_info",
             description=(
                 "Gets information about the current FiftyOne "
-                "App session, including whether it's active "
+                "App context, including whether it's active "
                 "and what dataset is loaded."
             ),
             inputSchema={"type": "object", "properties": {}},
         ),
-        get_session_info,
+        get_context_info,
     )
 
     registry.register(
