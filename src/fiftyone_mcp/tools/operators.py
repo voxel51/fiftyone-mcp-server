@@ -369,6 +369,7 @@ def get_operator_schema(
         elif params and ctx is not None:
             exec_ctx.request_params = dict(exec_ctx.request_params)
             exec_ctx.request_params["params"] = params
+            exec_ctx.params = params
 
         input_property = operator.resolve_input(exec_ctx)
         schema = input_property.to_json() if input_property else {}

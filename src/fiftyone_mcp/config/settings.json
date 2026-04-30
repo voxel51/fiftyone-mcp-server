@@ -1,7 +1,7 @@
 {
   "server": {
     "name": "fiftyone-mcp",
-    "version": "0.1.10",
+    "version": "0.1.11",
     "default_port": 5149,
     "max_response_chars": 200000
   },

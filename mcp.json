@@ -1,6 +1,6 @@
 {
   "name": "fiftyone-mcp-server",
-  "version": "0.1.10",
+  "version": "0.1.11",
   "description": "MCP server exposing FiftyOne dataset analysis tools",
   "tools": {
     "list_datasets": {
