@@ -80,11 +80,25 @@ def get_field_schema(ctx, dataset_name, include_private=False):
             name: _serialize_field(field) for name, field in raw_schema.items()
         }
 
+        frame_schema = {}
+        try:
+            raw_frame = dataset.get_frame_field_schema(
+                include_private=include_private
+            )
+            frame_schema = {
+                name: _serialize_field(field)
+                for name, field in raw_frame.items()
+            }
+        except Exception:
+            pass
+
         return format_response(
             {
                 "dataset_name": dataset_name,
                 "fields": schema,
                 "num_fields": len(schema),
+                "frame_fields": frame_schema,
+                "num_frame_fields": len(frame_schema),
             }
         )
 
@@ -216,11 +230,13 @@ def register_tools(registry):
             name="get_field_schema",
             description=(
                 "Get the full field schema for a dataset with "
-                "complete type information. Returns field_name "
-                "-> {type, subfield, embedded_doc_type, "
-                "description, required, read_only} for every "
-                "field. More detailed than load_dataset, which "
-                "only returns field names."
+                "complete type information. Returns "
+                "field_name -> {type, subfield, "
+                "embedded_doc_type, description, required, "
+                "read_only} for every sample field and every "
+                "frame field (for video datasets). More "
+                "detailed than load_dataset, which only "
+                "returns field names."
             ),
             inputSchema={
                 "type": "object",

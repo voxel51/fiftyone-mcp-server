@@ -8,7 +8,7 @@ Utility functions for FiftyOne MCP tools.
 
 import logging
 
-import fiftyone.core.view as fov
+import fiftyone as fo
 
 logger = logging.getLogger(__name__)
 
@@ -81,7 +81,7 @@ def _get_view(dataset, view_stages=None):
         return dataset.view()
 
     try:
-        return fov.DatasetView._build(dataset, view_stages)
+        return fo.DatasetView._build(dataset, view_stages)
     except Exception as e:
         logger.warning(
             "Failed to apply view stages, using full dataset: %s", e
