@@ -21,6 +21,7 @@ from .tools import (
     aggregations,
     app_config,
     datasets,
+    evaluation,
     operations,
     operators,
     pipelines,
@@ -55,16 +56,17 @@ def build_registry(config=None):
         if max_response_chars is not None
         else ToolRegistry()
     )
+    aggregations.register_tools(registry)
+    app_config.register_tools(registry)
     datasets.register_tools(registry)
+    evaluation.register_tools(registry)
     operations.register_tools(registry)
     operators.register_tools(registry)
     pipelines.register_tools(registry)
     plugins.register_tools(registry)
-    session.register_tools(registry)
-    aggregations.register_tools(registry)
     samples.register_tools(registry)
     schema.register_tools(registry)
-    app_config.register_tools(registry)
+    session.register_tools(registry)
     return registry
 
 
