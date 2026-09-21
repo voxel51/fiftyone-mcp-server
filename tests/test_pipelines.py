@@ -310,7 +310,7 @@ class TestDelegationInExecuteOperator:
 
     def test_list_operators_includes_delegation_info(self):
         """Test that list_operators includes delegation."""
-        result = list_operators(None)
+        result = list_operators(None, verbose=True)
 
         assert result["success"] is True
         assert result["data"]["count"] > 0
