@@ -258,14 +258,23 @@ def _get_execution_context(ctx, dataset_name=None, params=None):
 
 
 @mcp_tool(SDK)
-def list_operators(ctx, builtin_only=None, operator_type=None):
+def list_operators(ctx, builtin_only=None, operator_type=None, verbose=False):
     """Lists all available FiftyOne operators.
+
+    By default (``verbose=False``) returns a slim summary (uri, label,
+    description) -- enough to choose an operator and pass its URI to
+    execute_operator or get_operator_schema. An org with many installed
+    plugins can have 80+ operators; the full record for each one is
+    usually more than a caller needs just to pick which to use. Pass
+    ``verbose=True`` for the full record (name, plugin_name, builtin,
+    dynamic, execution flags).
 
     Args:
         ctx: an optional
             :class:`fiftyone.operators.executor.ExecutionContext`
         builtin_only (None): if True, only builtin operators
         operator_type (None): filter by type
+        verbose (False): if True, include full operator metadata
 
     Returns:
         a dict containing list of operators
@@ -283,23 +292,32 @@ def list_operators(ctx, builtin_only=None, operator_type=None):
 
         operator_list = []
         for op in operators:
-            operator_list.append(
-                {
-                    "uri": op.uri,
-                    "name": op.name,
-                    "label": op.config.label,
-                    "description": op.config.description,
-                    "plugin_name": op.plugin_name,
-                    "builtin": op.builtin,
-                    "dynamic": op.config.dynamic,
-                    "allow_delegated_execution": (
-                        op.config.allow_delegated_execution
-                    ),
-                    "allow_immediate_execution": (
-                        op.config.allow_immediate_execution
-                    ),
-                }
-            )
+            if verbose:
+                operator_list.append(
+                    {
+                        "uri": op.uri,
+                        "name": op.name,
+                        "label": op.config.label,
+                        "description": op.config.description,
+                        "plugin_name": op.plugin_name,
+                        "builtin": op.builtin,
+                        "dynamic": op.config.dynamic,
+                        "allow_delegated_execution": (
+                            op.config.allow_delegated_execution
+                        ),
+                        "allow_immediate_execution": (
+                            op.config.allow_immediate_execution
+                        ),
+                    }
+                )
+            else:
+                operator_list.append(
+                    {
+                        "uri": op.uri,
+                        "label": op.config.label,
+                        "description": op.config.description,
+                    }
+                )
 
         return format_response(
             {
@@ -588,7 +606,10 @@ def register_tools(registry):
                 "(import/export), @voxel51/evaluation, "
                 "@voxel51/annotation, @voxel51/zoo. Use this "
                 "FIRST to discover what operators are "
-                "available before executing them."
+                "available before executing them. Returns a "
+                "slim summary (uri, label, description) by "
+                "default; pass verbose=true only if you need "
+                "full operator metadata."
             ),
             inputSchema={
                 "type": "object",
@@ -609,6 +630,17 @@ def register_tools(registry):
                             "Filter by operator type. Omit "
                             "to return all types."
                         ),
+                    },
+                    "verbose": {
+                        "type": "boolean",
+                        "description": (
+                            "If true, include full operator "
+                            "metadata (name, plugin_name, "
+                            "builtin, dynamic, execution "
+                            "flags). Default false returns "
+                            "just uri, label, and description."
+                        ),
+                        "default": False,
                     },
                 },
             },

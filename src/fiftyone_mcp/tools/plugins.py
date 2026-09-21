@@ -18,13 +18,18 @@ logger = logging.getLogger(__name__)
 
 
 @mcp_tool(SDK)
-def list_plugins(ctx, enabled=None):
+def list_plugins(ctx, enabled=None, limit=50):
     """Lists available FiftyOne plugins.
+
+    Capped at ``limit`` entries by default -- an org with many
+    installed plugins would otherwise return an unbounded response.
+    ``total`` in the response reports how many exist overall.
 
     Args:
         ctx: an optional
             :class:`fiftyone.operators.executor.ExecutionContext`
         enabled (None): whether to list only enabled plugins
+        limit (50): the maximum number of plugins to return
 
     Returns:
         a dict with success status and plugin data
@@ -34,6 +39,10 @@ def list_plugins(ctx, enabled=None):
             plugins = fop.list_downloaded_plugins()
         else:
             plugins = fop.list_plugins(enabled=enabled)
+
+        total = len(plugins)
+        if limit:
+            plugins = plugins[:limit]
 
         plugin_list = []
         for item in plugins:
@@ -60,7 +69,11 @@ def list_plugins(ctx, enabled=None):
                 plugin_list.append({"name": str(plugin_name), "error": str(e)})
 
         return format_response(
-            {"plugins": plugin_list, "count": len(plugin_list)},
+            {
+                "plugins": plugin_list,
+                "count": len(plugin_list),
+                "total": total,
+            },
             success=True,
         )
     except Exception as e:
@@ -213,7 +226,9 @@ def register_tools(registry):
                 "(5 operators), @voxel51/annotation "
                 "(6 operators), @voxel51/zoo (2 operators). "
                 "Use this to discover what plugins are "
-                "installed and what operators they provide."
+                "installed and what operators they provide. "
+                "Capped at 50 by default; check 'total' in "
+                "the response to see if more exist."
             ),
             inputSchema={
                 "type": "object",
@@ -227,7 +242,15 @@ def register_tools(registry):
                             "specified, lists all downloaded "
                             "plugins"
                         ),
-                    }
+                    },
+                    "limit": {
+                        "type": "integer",
+                        "description": (
+                            "Maximum number of plugins to "
+                            "return. Default 50."
+                        ),
+                        "default": 50,
+                    },
                 },
             },
         ),

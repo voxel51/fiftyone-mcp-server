@@ -62,7 +62,7 @@ class TestOperatorDiscovery:
 
     def test_list_operators_builtin_only(self):
         """Test listing only builtin operators."""
-        result = list_operators(None, builtin_only=True)
+        result = list_operators(None, builtin_only=True, verbose=True)
 
         assert result["success"] is True
         assert result["data"]["count"] > 0
@@ -79,9 +79,31 @@ class TestOperatorDiscovery:
 
         first_op = operators[0]
         assert "uri" in first_op
+        assert "label" in first_op
+        assert "description" in first_op
+
+    def test_list_operators_verbose_structure(self):
+        """Test that verbose operators include the full field set."""
+        result = list_operators(None, verbose=True)
+        operators = result["data"]["operators"]
+
+        assert len(operators) > 0
+
+        first_op = operators[0]
+        assert "uri" in first_op
         assert "name" in first_op
         assert "label" in first_op
         assert "description" in first_op
+        assert "plugin_name" in first_op
+
+    def test_list_operators_verbose_is_larger(self):
+        """Verbose output includes strictly more data than the default."""
+        import json
+
+        default_size = len(json.dumps(list_operators(None)))
+        verbose_size = len(json.dumps(list_operators(None, verbose=True)))
+
+        assert verbose_size > default_size
 
     def test_operator_type_filter(self):
         """Test filtering operators by type."""
@@ -659,7 +681,7 @@ class TestEdgeCases:
 
     def test_list_operators_includes_delegation_info(self):
         """Test that list_operators includes delegation."""
-        result = list_operators(None)
+        result = list_operators(None, verbose=True)
 
         assert result["success"] is True
         assert result["data"]["count"] > 0
