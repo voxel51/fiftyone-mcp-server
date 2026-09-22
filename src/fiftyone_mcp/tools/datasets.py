@@ -240,7 +240,12 @@ def register_tools(registry):
                 "properties": {
                     "name": {
                         "type": "string",
-                        "description": ("Name of the dataset to load"),
+                        "description": (
+                            "Name of the dataset to load. Required on "
+                            "every call -- always pass it explicitly, "
+                            "even if the current dataset was already "
+                            "mentioned earlier in this conversation."
+                        ),
                     }
                 },
                 "required": ["name"],
@@ -260,7 +265,12 @@ def register_tools(registry):
                 "properties": {
                     "name": {
                         "type": "string",
-                        "description": "Name of the dataset",
+                        "description": (
+                            "Name of the dataset. Required on every call "
+                            "-- always pass it explicitly, even if the "
+                            "current dataset was already mentioned "
+                            "earlier in this conversation."
+                        ),
                     }
                 },
                 "required": ["name"],

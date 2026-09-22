@@ -298,14 +298,23 @@ def register_tools(registry):
                 "across a dataset. Returns a {value: count} dict. "
                 "Useful for understanding label distributions, "
                 "tag frequencies, or any categorical field. "
-                "Optionally filter with view_stages before counting."
+                "Optionally filter with view_stages before counting. "
+                "This is an MCP tool, not FiftyOne's "
+                "Dataset.count_values() method -- pass dataset_name "
+                "and field as separate keyword arguments, not "
+                "field_or_expr."
             ),
             inputSchema={
                 "type": "object",
                 "properties": {
                     "dataset_name": {
                         "type": "string",
-                        "description": "Name of the dataset",
+                        "description": (
+                            "Name of the dataset. Required on every call -- "
+                            "always pass it explicitly, even if the current "
+                            "dataset was already mentioned earlier in this "
+                            "conversation."
+                        ),
                     },
                     "field": {
                         "type": "string",
@@ -338,14 +347,22 @@ def register_tools(registry):
                 "across a dataset. Returns an array of distinct "
                 "values with a count. Useful for discovering all "
                 "classes, categories, or unique identifiers in a "
-                "field."
+                "field. This is an MCP tool, not FiftyOne's "
+                "Dataset.distinct() method -- pass dataset_name and "
+                "field as separate keyword arguments, not "
+                "field_or_expr."
             ),
             inputSchema={
                 "type": "object",
                 "properties": {
                     "dataset_name": {
                         "type": "string",
-                        "description": "Name of the dataset",
+                        "description": (
+                            "Name of the dataset. Required on every call -- "
+                            "always pass it explicitly, even if the current "
+                            "dataset was already mentioned earlier in this "
+                            "conversation."
+                        ),
                     },
                     "field": {
                         "type": "string",
@@ -376,14 +393,22 @@ def register_tools(registry):
                 "Get the min and max values for a numeric field. "
                 "Returns {min, max}. Useful for understanding the "
                 "range of confidence scores, image dimensions, or "
-                "any numeric field."
+                "any numeric field. This is an MCP tool, not "
+                "FiftyOne's Dataset.bounds() method -- pass "
+                "dataset_name and field as separate keyword "
+                "arguments, not field_or_expr."
             ),
             inputSchema={
                 "type": "object",
                 "properties": {
                     "dataset_name": {
                         "type": "string",
-                        "description": "Name of the dataset",
+                        "description": (
+                            "Name of the dataset. Required on every call -- "
+                            "always pass it explicitly, even if the current "
+                            "dataset was already mentioned earlier in this "
+                            "conversation."
+                        ),
                     },
                     "field": {
                         "type": "string",
@@ -415,14 +440,22 @@ def register_tools(registry):
                 "Compute the mean (average) of a numeric field "
                 "across all samples. Returns a single float. "
                 "Useful for average confidence, uniqueness "
-                "scores, etc."
+                "scores, etc. This is an MCP tool, not FiftyOne's "
+                "Dataset.mean() method -- pass dataset_name and "
+                "field as separate keyword arguments, not "
+                "field_or_expr."
             ),
             inputSchema={
                 "type": "object",
                 "properties": {
                     "dataset_name": {
                         "type": "string",
-                        "description": "Name of the dataset",
+                        "description": (
+                            "Name of the dataset. Required on every call -- "
+                            "always pass it explicitly, even if the current "
+                            "dataset was already mentioned earlier in this "
+                            "conversation."
+                        ),
                     },
                     "field": {
                         "type": "string",
@@ -448,14 +481,22 @@ def register_tools(registry):
             name="sum",
             description=(
                 "Compute the sum of a numeric field across all "
-                "samples. Returns a single number."
+                "samples. Returns a single number. This is an MCP "
+                "tool, not FiftyOne's Dataset.sum() method -- pass "
+                "dataset_name and field as separate keyword "
+                "arguments, not field_or_expr."
             ),
             inputSchema={
                 "type": "object",
                 "properties": {
                     "dataset_name": {
                         "type": "string",
-                        "description": "Name of the dataset",
+                        "description": (
+                            "Name of the dataset. Required on every call -- "
+                            "always pass it explicitly, even if the current "
+                            "dataset was already mentioned earlier in this "
+                            "conversation."
+                        ),
                     },
                     "field": {
                         "type": "string",
@@ -481,14 +522,22 @@ def register_tools(registry):
             name="std",
             description=(
                 "Compute the standard deviation of a numeric "
-                "field across all samples. Returns a single float."
+                "field across all samples. Returns a single float. "
+                "This is an MCP tool, not FiftyOne's Dataset.std() "
+                "method -- pass dataset_name and field as separate "
+                "keyword arguments, not field_or_expr."
             ),
             inputSchema={
                 "type": "object",
                 "properties": {
                     "dataset_name": {
                         "type": "string",
-                        "description": "Name of the dataset",
+                        "description": (
+                            "Name of the dataset. Required on every call -- "
+                            "always pass it explicitly, even if the current "
+                            "dataset was already mentioned earlier in this "
+                            "conversation."
+                        ),
                     },
                     "field": {
                         "type": "string",
@@ -517,14 +566,22 @@ def register_tools(registry):
                 "field. Returns bin counts, bin edges, and the "
                 "count of values outside the range. Useful for "
                 "visualizing distributions of confidence scores, "
-                "object sizes, etc."
+                "object sizes, etc. This is an MCP tool, not "
+                "FiftyOne's Dataset.histogram_values() method -- "
+                "pass dataset_name and field as separate keyword "
+                "arguments, not field_or_expr."
             ),
             inputSchema={
                 "type": "object",
                 "properties": {
                     "dataset_name": {
                         "type": "string",
-                        "description": "Name of the dataset",
+                        "description": (
+                            "Name of the dataset. Required on every call -- "
+                            "always pass it explicitly, even if the current "
+                            "dataset was already mentioned earlier in this "
+                            "conversation."
+                        ),
                     },
                     "field": {
                         "type": "string",
@@ -572,14 +629,22 @@ def register_tools(registry):
                 "in a dataset. Returns a list of values in sample "
                 "order. Useful for reading custom field data, "
                 "scores, or metadata. Capped at 10,000 samples "
-                "by default to avoid large responses."
+                "by default to avoid large responses. This is an "
+                "MCP tool, not FiftyOne's Dataset.values() method "
+                "-- pass dataset_name and field as separate "
+                "keyword arguments, not field_or_expr."
             ),
             inputSchema={
                 "type": "object",
                 "properties": {
                     "dataset_name": {
                         "type": "string",
-                        "description": "Name of the dataset",
+                        "description": (
+                            "Name of the dataset. Required on every call -- "
+                            "always pass it explicitly, even if the current "
+                            "dataset was already mentioned earlier in this "
+                            "conversation."
+                        ),
                     },
                     "field": {
                         "type": "string",

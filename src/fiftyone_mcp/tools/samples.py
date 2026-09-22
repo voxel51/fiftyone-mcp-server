@@ -252,14 +252,23 @@ def register_tools(registry):
                 "the added samples. Use this for programmatic "
                 "sample creation from Python dicts — use the "
                 "import_samples operator for file/dir imports "
-                "instead."
+                "instead. This is an MCP tool, not FiftyOne's "
+                "Dataset.add_samples() method -- it still requires "
+                "dataset_name as an explicit argument, unlike the "
+                "bound SDK method which needs none, and takes plain "
+                "dicts rather than Sample objects."
             ),
             inputSchema={
                 "type": "object",
                 "properties": {
                     "dataset_name": {
                         "type": "string",
-                        "description": "Name of the dataset",
+                        "description": (
+                            "Name of the dataset. Required on every call -- "
+                            "always pass it explicitly, even if the current "
+                            "dataset was already mentioned earlier in this "
+                            "conversation."
+                        ),
                     },
                     "samples": {
                         "type": "array",
@@ -301,14 +310,23 @@ def register_tools(registry):
                 "Use this when you need to write computed scores, "
                 "labels, or metadata back to the dataset. Note: "
                 "the edit_field_values operator does value "
-                "remapping (old->new), not bulk assignment."
+                "remapping (old->new), not bulk assignment. This is "
+                "an MCP tool, not FiftyOne's Dataset.set_values() "
+                "method -- it still requires dataset_name as an "
+                "explicit argument, unlike the bound SDK method "
+                "which needs none."
             ),
             inputSchema={
                 "type": "object",
                 "properties": {
                     "dataset_name": {
                         "type": "string",
-                        "description": "Name of the dataset",
+                        "description": (
+                            "Name of the dataset. Required on every call -- "
+                            "always pass it explicitly, even if the current "
+                            "dataset was already mentioned earlier in this "
+                            "conversation."
+                        ),
                     },
                     "field": {
                         "type": "string",
@@ -352,14 +370,23 @@ def register_tools(registry):
                 "or sample_ids. Returns the count of samples "
                 "that were tagged. Tags can be used to mark "
                 "subsets for review, training splits, or any "
-                "custom categorization."
+                "custom categorization. This is an MCP tool, not "
+                "FiftyOne's Dataset.tag_samples() method -- it "
+                "still requires dataset_name as an explicit "
+                "argument, unlike the bound SDK method which needs "
+                "none."
             ),
             inputSchema={
                 "type": "object",
                 "properties": {
                     "dataset_name": {
                         "type": "string",
-                        "description": "Name of the dataset",
+                        "description": (
+                            "Name of the dataset. Required on every call -- "
+                            "always pass it explicitly, even if the current "
+                            "dataset was already mentioned earlier in this "
+                            "conversation."
+                        ),
                     },
                     "tags": {
                         "type": "array",
@@ -398,14 +425,23 @@ def register_tools(registry):
                 "Remove tags from samples in a dataset. "
                 "Optionally filter which samples to untag using "
                 "view_stages or sample_ids. Returns the count of "
-                "samples that were processed."
+                "samples that were processed. This is an MCP tool, "
+                "not FiftyOne's Dataset.untag_samples() method -- "
+                "it still requires dataset_name as an explicit "
+                "argument, unlike the bound SDK method which needs "
+                "none."
             ),
             inputSchema={
                 "type": "object",
                 "properties": {
                     "dataset_name": {
                         "type": "string",
-                        "description": "Name of the dataset",
+                        "description": (
+                            "Name of the dataset. Required on every call -- "
+                            "always pass it explicitly, even if the current "
+                            "dataset was already mentioned earlier in this "
+                            "conversation."
+                        ),
                     },
                     "tags": {
                         "type": "array",
@@ -445,14 +481,23 @@ def register_tools(registry):
                 "dataset. Returns a {tag: count} dict and total "
                 "number of distinct tags. Useful for "
                 "understanding tag distributions before "
-                "filtering or after tagging operations."
+                "filtering or after tagging operations. This is "
+                "an MCP tool, not FiftyOne's "
+                "Dataset.count_sample_tags() method -- it still "
+                "requires dataset_name as an explicit argument, "
+                "unlike the bound SDK method which needs none."
             ),
             inputSchema={
                 "type": "object",
                 "properties": {
                     "dataset_name": {
                         "type": "string",
-                        "description": "Name of the dataset",
+                        "description": (
+                            "Name of the dataset. Required on every call -- "
+                            "always pass it explicitly, even if the current "
+                            "dataset was already mentioned earlier in this "
+                            "conversation."
+                        ),
                     },
                 },
                 "required": ["dataset_name"],

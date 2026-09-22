@@ -236,14 +236,23 @@ def register_tools(registry):
                 "read_only} for every sample field and every "
                 "frame field (for video datasets). More "
                 "detailed than load_dataset, which only "
-                "returns field names."
+                "returns field names. This is an MCP tool, not "
+                "FiftyOne's Dataset.get_field_schema() method -- "
+                "it still requires dataset_name as an explicit "
+                "argument, unlike the bound SDK method which needs "
+                "none."
             ),
             inputSchema={
                 "type": "object",
                 "properties": {
                     "dataset_name": {
                         "type": "string",
-                        "description": "Name of the dataset",
+                        "description": (
+                            "Name of the dataset. Required on every call -- "
+                            "always pass it explicitly, even if the current "
+                            "dataset was already mentioned earlier in this "
+                            "conversation."
+                        ),
                     },
                     "include_private": {
                         "type": "boolean",
@@ -274,14 +283,23 @@ def register_tools(registry):
                 "StringField, IntField, FloatField, "
                 "BooleanField, ListField, "
                 "EmbeddedDocumentField, DateTimeField, "
-                "GeoPointField."
+                "GeoPointField. This is an MCP tool, not FiftyOne's "
+                "Dataset.add_sample_field() method -- it still "
+                "requires dataset_name as an explicit argument, and "
+                "field_type is a string name (e.g. 'StringField'), "
+                "not a Python class object."
             ),
             inputSchema={
                 "type": "object",
                 "properties": {
                     "dataset_name": {
                         "type": "string",
-                        "description": "Name of the dataset",
+                        "description": (
+                            "Name of the dataset. Required on every call -- "
+                            "always pass it explicitly, even if the current "
+                            "dataset was already mentioned earlier in this "
+                            "conversation."
+                        ),
                     },
                     "field_name": {
                         "type": "string",
