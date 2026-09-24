@@ -164,14 +164,22 @@ def register_tools(registry):
                 "'visualization') or method (e.g. 'umap', "
                 "'resnet50'). Returns a list of run keys "
                 "you can pass to get_brain_info or "
-                "load_brain_results."
+                "load_brain_results. This is an MCP tool, not "
+                "FiftyOne's Dataset.list_brain_runs() method -- it "
+                "still requires dataset_name as an explicit argument, "
+                "unlike the bound SDK method which needs none."
             ),
             inputSchema={
                 "type": "object",
                 "properties": {
                     "dataset_name": {
                         "type": "string",
-                        "description": "Name of the dataset",
+                        "description": (
+                            "Name of the dataset. Required on every call -- "
+                            "always pass it explicitly, even if the current "
+                            "dataset was already mentioned earlier in this "
+                            "conversation."
+                        ),
                     },
                     "run_type": {
                         "type": "string",
@@ -208,14 +216,23 @@ def register_tools(registry):
                 "'detection', 'classification') or method "
                 "(e.g. 'coco', 'open-images'). Returns a "
                 "list of eval keys you can pass to "
-                "get_evaluation_info or load_evaluation_results."
+                "get_evaluation_info or load_evaluation_results. "
+                "This is an MCP tool, not FiftyOne's "
+                "Dataset.list_evaluations() method -- it still "
+                "requires dataset_name as an explicit argument, "
+                "unlike the bound SDK method which needs none."
             ),
             inputSchema={
                 "type": "object",
                 "properties": {
                     "dataset_name": {
                         "type": "string",
-                        "description": "Name of the dataset",
+                        "description": (
+                            "Name of the dataset. Required on every call -- "
+                            "always pass it explicitly, even if the current "
+                            "dataset was already mentioned earlier in this "
+                            "conversation."
+                        ),
                     },
                     "eval_type": {
                         "type": "string",
@@ -256,7 +273,12 @@ def register_tools(registry):
                 "properties": {
                     "dataset_name": {
                         "type": "string",
-                        "description": "Name of the dataset",
+                        "description": (
+                            "Name of the dataset. Required on every call -- "
+                            "always pass it explicitly, even if the current "
+                            "dataset was already mentioned earlier in this "
+                            "conversation."
+                        ),
                     },
                 },
                 "required": ["dataset_name"],

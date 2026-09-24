@@ -24,18 +24,27 @@ logger = logging.getLogger(__name__)
 
 
 @mcp_tool(SDK)
-def list_datasets(ctx):
+def list_datasets(ctx, limit=50):
     """Lists all available FiftyOne datasets.
+
+    Capped at ``limit`` entries by default -- an org with many datasets
+    would otherwise return an unbounded response. ``total`` in the
+    response reports how many exist overall, so a caller can tell
+    whether the list was truncated.
 
     Args:
         ctx: an optional
             :class:`fiftyone.operators.executor.ExecutionContext`
+        limit (50): the maximum number of datasets to return
 
     Returns:
         a dict containing list of dataset names and metadata
     """
     try:
         datasets = fo.list_datasets()
+        total = len(datasets)
+        if limit:
+            datasets = datasets[:limit]
         dataset_info = []
 
         for name in datasets:
@@ -55,7 +64,11 @@ def list_datasets(ctx):
                 dataset_info.append({"name": name, "error": str(e)})
 
         return format_response(
-            {"count": len(datasets), "datasets": dataset_info}
+            {
+                "count": len(dataset_info),
+                "total": total,
+                "datasets": dataset_info,
+            }
         )
 
     except Exception as e:
@@ -95,9 +108,42 @@ def load_dataset(ctx, name):
         return format_response(None, success=False, error=str(e))
 
 
+_COUNTABLE_FIELD_TYPES = (
+    fo.BooleanField,
+    fo.IntField,
+    fo.StringField,
+    fo.DateField,
+    fo.DateTimeField,
+)
+
+_SKIP_VALUE_COUNT_FIELDS = frozenset({"id", "filepath", "metadata", "tags"})
+
+
+def _is_countable_field(field):
+    """Whether ``count_values`` is meaningful for this field's type.
+
+    Per FiftyOne's own docs, ``count_values`` is for Boolean/Int/String/
+    Date/DateTime fields (or lists of such types) -- anything else
+    (floats, embeddings, embedded documents) either fails or returns a
+    result with no useful bound on cardinality, so it isn't worth the
+    aggregation.
+    """
+    if isinstance(field, fo.ListField):
+        field = field.field
+    return isinstance(field, _COUNTABLE_FIELD_TYPES)
+
+
 @mcp_tool(SDK)
 def dataset_summary(ctx, name):
     """Gets detailed summary statistics for a dataset.
+
+    Value counts and tag counts are computed with a single batched
+    aggregation (``dataset.aggregate``) rather than one query per field
+    and one query per tag -- per FiftyOne's own docs, grouping
+    aggregations into one call is more efficient than running them in
+    series. Fields whose type ``count_values`` isn't meaningful for
+    (floats, embeddings, dates, embedded documents) are skipped up
+    front instead of attempted and discarded.
 
     Args:
         ctx: an optional
@@ -115,34 +161,40 @@ def dataset_summary(ctx, name):
             "total_samples": len(dataset),
             "tags": {},
         }
-
-        for tag in dataset.tags:
-            tagged_view = dataset.match_tags(tag)
-            summary["stats"]["tags"][tag] = len(tagged_view)
-
-        schema = dataset.get_field_schema()
         summary["value_counts"] = {}
 
-        for field_name in schema.keys():
-            if field_name in ["id", "filepath", "metadata"]:
-                continue
+        schema = dataset.get_field_schema()
+        countable_fields = [
+            field_name
+            for field_name, field in schema.items()
+            if field_name not in _SKIP_VALUE_COUNT_FIELDS
+            and _is_countable_field(field)
+        ]
 
-            try:
-                if hasattr(dataset, "count_values"):
-                    counts = dataset.count_values(field_name)
-                    if counts and len(counts) < 100:
-                        summary["value_counts"][field_name] = {
-                            (
-                                k
-                                if isinstance(
-                                    k, (str, int, float, bool, type(None))
-                                )
-                                else str(k)
-                            ): v
-                            for k, v in counts.items()
-                        }
-            except Exception:
-                pass
+        agg_fields = list(countable_fields)
+        if dataset.tags:
+            agg_fields.append("tags")
+
+        if agg_fields:
+            results = dataset.aggregate(
+                [fo.CountValues(f) for f in agg_fields]
+            )
+            for field_name, counts in zip(agg_fields, results):
+                if field_name == "tags":
+                    summary["stats"]["tags"] = {
+                        tag: counts.get(tag, 0) for tag in dataset.tags
+                    }
+                if counts and len(counts) < 100:
+                    summary["value_counts"][field_name] = {
+                        (
+                            k
+                            if isinstance(
+                                k, (str, int, float, bool, type(None))
+                            )
+                            else str(k)
+                        ): v
+                        for k, v in counts.items()
+                    }
 
         return format_response(summary)
 
@@ -161,11 +213,22 @@ def register_tools(registry):
         Tool(
             name="list_datasets",
             description=(
-                "List all available FiftyOne datasets with " "metadata"
+                "List all available FiftyOne datasets with metadata. "
+                "Capped at 50 by default; check 'total' in the "
+                "response to see if more exist."
             ),
             inputSchema={
                 "type": "object",
-                "properties": {},
+                "properties": {
+                    "limit": {
+                        "type": "integer",
+                        "description": (
+                            "Maximum number of datasets to return. "
+                            "Default 50."
+                        ),
+                        "default": 50,
+                    },
+                },
                 "required": [],
             },
         ),
@@ -184,7 +247,12 @@ def register_tools(registry):
                 "properties": {
                     "name": {
                         "type": "string",
-                        "description": ("Name of the dataset to load"),
+                        "description": (
+                            "Name of the dataset to load. Required on "
+                            "every call -- always pass it explicitly, "
+                            "even if the current dataset was already "
+                            "mentioned earlier in this conversation."
+                        ),
                     }
                 },
                 "required": ["name"],
@@ -204,7 +272,12 @@ def register_tools(registry):
                 "properties": {
                     "name": {
                         "type": "string",
-                        "description": "Name of the dataset",
+                        "description": (
+                            "Name of the dataset. Required on every call "
+                            "-- always pass it explicitly, even if the "
+                            "current dataset was already mentioned "
+                            "earlier in this conversation."
+                        ),
                     }
                 },
                 "required": ["name"],

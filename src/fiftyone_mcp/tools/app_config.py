@@ -341,7 +341,12 @@ def register_tools(registry):
                 "properties": {
                     "dataset_name": {
                         "type": "string",
-                        "description": "Name of the dataset",
+                        "description": (
+                            "Name of the dataset. Required on every call -- "
+                            "always pass it explicitly, even if the current "
+                            "dataset was already mentioned earlier in this "
+                            "conversation."
+                        ),
                     },
                 },
                 "required": ["dataset_name"],
@@ -363,7 +368,12 @@ def register_tools(registry):
                 "properties": {
                     "dataset_name": {
                         "type": "string",
-                        "description": "Name of the dataset",
+                        "description": (
+                            "Name of the dataset. Required on every call -- "
+                            "always pass it explicitly, even if the current "
+                            "dataset was already mentioned earlier in this "
+                            "conversation."
+                        ),
                     },
                 },
                 "required": ["dataset_name"],
@@ -386,7 +396,12 @@ def register_tools(registry):
                 "properties": {
                     "dataset_name": {
                         "type": "string",
-                        "description": "Name of the dataset",
+                        "description": (
+                            "Name of the dataset. Required on every call -- "
+                            "always pass it explicitly, even if the current "
+                            "dataset was already mentioned earlier in this "
+                            "conversation."
+                        ),
                     },
                     "color_by": {
                         "type": "string",
@@ -427,7 +442,12 @@ def register_tools(registry):
                 "properties": {
                     "dataset_name": {
                         "type": "string",
-                        "description": "Name of the dataset",
+                        "description": (
+                            "Name of the dataset. Required on every call -- "
+                            "always pass it explicitly, even if the current "
+                            "dataset was already mentioned earlier in this "
+                            "conversation."
+                        ),
                     },
                 },
                 "required": ["dataset_name"],
@@ -450,7 +470,12 @@ def register_tools(registry):
                 "properties": {
                     "dataset_name": {
                         "type": "string",
-                        "description": "Name of the dataset",
+                        "description": (
+                            "Name of the dataset. Required on every call -- "
+                            "always pass it explicitly, even if the current "
+                            "dataset was already mentioned earlier in this "
+                            "conversation."
+                        ),
                     },
                     "groups": {
                         "type": "array",
@@ -500,7 +525,12 @@ def register_tools(registry):
                 "properties": {
                     "dataset_name": {
                         "type": "string",
-                        "description": "Name of the dataset",
+                        "description": (
+                            "Name of the dataset. Required on every call -- "
+                            "always pass it explicitly, even if the current "
+                            "dataset was already mentioned earlier in this "
+                            "conversation."
+                        ),
                     },
                     "paths": {
                         "type": "array",
