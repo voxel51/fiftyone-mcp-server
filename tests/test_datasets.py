@@ -181,6 +181,9 @@ class TestDatasetSummarySerializability:
                     assert isinstance(
                         k, (str, int, float, bool, type(None))
                     ), f"Non-serializable key: {k!r}"
+
+            assert "captured_at" in counts
+            assert len(counts["captured_at"]) == 3
         finally:
             if fo.dataset_exists(dataset_name):
                 fo.delete_dataset(dataset_name)

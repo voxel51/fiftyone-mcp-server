@@ -108,7 +108,13 @@ def load_dataset(ctx, name):
         return format_response(None, success=False, error=str(e))
 
 
-_COUNTABLE_FIELD_TYPES = (fo.BooleanField, fo.IntField, fo.StringField)
+_COUNTABLE_FIELD_TYPES = (
+    fo.BooleanField,
+    fo.IntField,
+    fo.StringField,
+    fo.DateField,
+    fo.DateTimeField,
+)
 
 _SKIP_VALUE_COUNT_FIELDS = frozenset({"id", "filepath", "metadata", "tags"})
 
@@ -116,10 +122,11 @@ _SKIP_VALUE_COUNT_FIELDS = frozenset({"id", "filepath", "metadata", "tags"})
 def _is_countable_field(field):
     """Whether ``count_values`` is meaningful for this field's type.
 
-    Per FiftyOne's own docs, ``count_values`` is for Boolean/Int/String
-    fields (or lists of such types) -- anything else (floats, embeddings,
-    dates, embedded documents) either fails or returns a result with no
-    useful bound on cardinality, so it isn't worth the aggregation.
+    Per FiftyOne's own docs, ``count_values`` is for Boolean/Int/String/
+    Date/DateTime fields (or lists of such types) -- anything else
+    (floats, embeddings, embedded documents) either fails or returns a
+    result with no useful bound on cardinality, so it isn't worth the
+    aggregation.
     """
     if isinstance(field, fo.ListField):
         field = field.field
@@ -207,7 +214,7 @@ def register_tools(registry):
             name="list_datasets",
             description=(
                 "List all available FiftyOne datasets with metadata. "
-                "Capped at 100 by default; check 'total' in the "
+                "Capped at 50 by default; check 'total' in the "
                 "response to see if more exist."
             ),
             inputSchema={
@@ -217,7 +224,7 @@ def register_tools(registry):
                         "type": "integer",
                         "description": (
                             "Maximum number of datasets to return. "
-                            "Default 100."
+                            "Default 50."
                         ),
                         "default": 50,
                     },
