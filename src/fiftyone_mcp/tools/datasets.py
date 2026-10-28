@@ -13,6 +13,7 @@ from mcp.types import Tool
 
 from .utils import (
     SDK,
+    _is_countable_field,
     format_response,
     mcp_tool,
     safe_serialize,
@@ -108,29 +109,7 @@ def load_dataset(ctx, name):
         return format_response(None, success=False, error=str(e))
 
 
-_COUNTABLE_FIELD_TYPES = (
-    fo.BooleanField,
-    fo.IntField,
-    fo.StringField,
-    fo.DateField,
-    fo.DateTimeField,
-)
-
 _SKIP_VALUE_COUNT_FIELDS = frozenset({"id", "filepath", "metadata", "tags"})
-
-
-def _is_countable_field(field):
-    """Whether ``count_values`` is meaningful for this field's type.
-
-    Per FiftyOne's own docs, ``count_values`` is for Boolean/Int/String/
-    Date/DateTime fields (or lists of such types) -- anything else
-    (floats, embeddings, embedded documents) either fails or returns a
-    result with no useful bound on cardinality, so it isn't worth the
-    aggregation.
-    """
-    if isinstance(field, fo.ListField):
-        field = field.field
-    return isinstance(field, _COUNTABLE_FIELD_TYPES)
 
 
 @mcp_tool(SDK)
