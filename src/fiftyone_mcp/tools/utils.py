@@ -66,6 +66,31 @@ def mcp_tool(*modes, risk=LOW):
     return decorator
 
 
+def resolve_alias(value, *aliases):
+    """Returns the first non-``None`` value among ``value`` and ``aliases``.
+
+    Lets a tool quietly accept an older or commonly-guessed argument
+    name without advertising it in the tool's schema -- a caller that
+    passes the alias keyword instead of the canonical one still works.
+
+    Args:
+        value: the value passed under the tool's canonical argument
+            name
+        *aliases: values passed under deprecated or commonly-confused
+            argument names, in priority order
+
+    Returns:
+        ``value`` if it isn't ``None``, else the first non-``None``
+        alias, else ``None``
+    """
+    if value is not None:
+        return value
+    for alias in aliases:
+        if alias is not None:
+            return alias
+    return None
+
+
 def _get_view(dataset, view_stages=None):
     """Builds a view from a dataset with optional serialized stages.
 

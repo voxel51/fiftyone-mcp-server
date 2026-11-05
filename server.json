@@ -6,12 +6,12 @@
     "url": "https://github.com/voxel51/fiftyone-mcp-server",
     "source": "github"
   },
-  "version": "0.1.16",
+  "version": "0.1.17",
   "packages": [
     {
       "registryType": "pypi",
       "identifier": "fiftyone-mcp-server",
-      "version": "0.1.16",
+      "version": "0.1.17",
       "transport": {
         "type": "stdio"
       }

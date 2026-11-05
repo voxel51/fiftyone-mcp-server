@@ -303,6 +303,29 @@ _OPS = [
 ]
 
 
+# Argument names a model has been observed to substitute for the
+# schema's real property, keyed by ``ctx.ops`` method name. Remapped
+# onto the canonical name before the call rather than advertised in
+# the schema, so the tool still documents one argument per concept.
+# close_panel/show_samples take the same aliases as their respective
+# counterparts open_panel/set_selected_samples -- same concept, same
+# property name, so a model conditioned to guess wrong on one guesses
+# wrong on the other.
+_ARG_ALIASES = {
+    "open_panel": {"panel_name": "name", "panel": "name"},
+    "close_panel": {"panel_name": "name", "panel": "name"},
+    "set_selected_samples": {"sample_ids": "samples"},
+    "show_samples": {"sample_ids": "samples"},
+}
+
+# Arguments a model has been observed to pass defensively to tools
+# that don't take them (most other tools require a dataset name;
+# these operate on ``ctx``'s connected dataset instead).
+_IGNORED_ARGS = {
+    "open_panel": frozenset({"dataset_name"}),
+}
+
+
 def _make_ops_handler(method_name):
     """Creates a pass-through handler for ``ctx.ops.<method>``.
 
@@ -312,9 +335,17 @@ def _make_ops_handler(method_name):
     Returns:
         a handler function decorated with ``@mcp_tool(APP)``
     """
+    aliases = _ARG_ALIASES.get(method_name, {})
+    ignored = _IGNORED_ARGS.get(method_name, frozenset())
 
     @mcp_tool(APP)
     def handler(ctx, **kwargs):
+        for alias, canonical in aliases.items():
+            if alias in kwargs:
+                kwargs.setdefault(canonical, kwargs.pop(alias))
+        for key in ignored:
+            kwargs.pop(key, None)
+
         fn = getattr(ctx.ops, method_name)
         trigger = fn(**kwargs)
         result = format_response({"method": method_name})
@@ -393,6 +424,7 @@ def set_view(
     exists=None,
     tags=None,
     sample_ids=None,
+    dataset_name=None,
 ):
     """Sets a filtered view in the FiftyOne App.
 
@@ -415,6 +447,11 @@ def set_view(
         exists (None): a field name or list of field names
         tags (None): a tag or list of tags to match
         sample_ids (None): a list of sample IDs to select
+        dataset_name (None): unused. This tool always operates on
+            ``ctx.dataset``, the App's currently connected dataset --
+            there's no dataset to name. Accepted and ignored so a
+            caller that passes it defensively (most other tools
+            require it) doesn't get a hard error.
 
     Returns:
         a dict with view info

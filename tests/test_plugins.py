@@ -75,6 +75,47 @@ class TestDownloadPlugin:
         assert result["success"] is False
         assert "error" in result
 
+    def test_download_no_url_is_an_error(self):
+        """Omitting url_or_repo and every alias must error cleanly,
+        not raise inside fiftyone.plugins.download_plugin."""
+        result = download_plugin(None)
+        assert result["success"] is False
+        assert "error" in result
+
+    @pytest.mark.parametrize(
+        "alias", ["url", "repo", "repo_url", "github_repo"]
+    )
+    def test_download_plugin_url_aliases(self, alias):
+        """url_or_repo is the canonical parameter -- a model commonly
+        guesses url/repo/repo_url/github_repo instead. Each alias
+        must still reach fiftyone.plugins.download_plugin as the
+        actual repo string (confirmed by behaving like the invalid-url
+        case, not the missing-url case)."""
+        result = download_plugin(None, **{alias: "invalid-url"})
+        assert result["success"] is False
+        assert "error" in result
+        assert "is required" not in result["error"]
+
+    def test_download_plugin_canonical_wins_over_alias(self, monkeypatch):
+        """When both the canonical and alias keywords are given, the
+        canonical one must reach fiftyone.plugins.download_plugin,
+        not the alias."""
+        import fiftyone_mcp.tools.plugins as plugins_module
+
+        calls = []
+        monkeypatch.setattr(
+            plugins_module.fop,
+            "download_plugin",
+            lambda url_or_repo, **kwargs: calls.append(url_or_repo),
+        )
+        monkeypatch.setattr(
+            plugins_module.fop, "list_downloaded_plugins", lambda: []
+        )
+
+        download_plugin(None, url_or_repo="canonical", url="alias")
+
+        assert calls == ["canonical"]
+
 
 class TestEnableDisablePlugin:
     """Tests for enable/disable plugin tools."""

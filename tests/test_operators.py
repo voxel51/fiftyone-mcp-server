@@ -114,6 +114,15 @@ class TestOperatorDiscovery:
         assert result["success"] is True
         assert result["data"]["count"] > 0
 
+    def test_list_operators_ignores_stray_dataset_name(self):
+        """Operators are global, not dataset-scoped -- a model that
+        passes dataset_name defensively (most other tools require it)
+        must not get a hard TypeError."""
+        result = list_operators(None, dataset_name="quickstart")
+
+        assert result["success"] is True
+        assert result["data"]["count"] > 0
+
 
 class TestOperatorSchema:
     """Tests for operator schema operations."""

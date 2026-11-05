@@ -258,7 +258,13 @@ def _get_execution_context(ctx, dataset_name=None, params=None):
 
 
 @mcp_tool(SDK)
-def list_operators(ctx, builtin_only=None, operator_type=None, verbose=False):
+def list_operators(
+    ctx,
+    builtin_only=None,
+    operator_type=None,
+    verbose=False,
+    dataset_name=None,
+):
     """Lists all available FiftyOne operators.
 
     By default (``verbose=False``) returns a slim summary (uri, label,
@@ -275,6 +281,10 @@ def list_operators(ctx, builtin_only=None, operator_type=None, verbose=False):
         builtin_only (None): if True, only builtin operators
         operator_type (None): filter by type
         verbose (False): if True, include full operator metadata
+        dataset_name (None): unused. Operators are global, not
+            dataset-scoped. Accepted and ignored so a caller that
+            passes it defensively (most other tools require it)
+            doesn't get a hard error.
 
     Returns:
         a dict containing list of operators

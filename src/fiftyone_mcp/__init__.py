@@ -8,7 +8,7 @@ Expose FiftyOne dataset tools via Model Context Protocol.
 |
 """
 
-__version__ = "0.1.16"
+__version__ = "0.1.17"
 
 
 def register(plugin):
