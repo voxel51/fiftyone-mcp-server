@@ -66,6 +66,31 @@ def mcp_tool(*modes, risk=LOW):
     return decorator
 
 
+def resolve_alias(value, *aliases):
+    """Returns the first non-``None`` value among ``value`` and ``aliases``.
+
+    Lets a tool quietly accept an older or commonly-guessed argument
+    name without advertising it in the tool's schema -- a caller that
+    passes the alias keyword instead of the canonical one still works.
+
+    Args:
+        value: the value passed under the tool's canonical argument
+            name
+        *aliases: values passed under deprecated or commonly-confused
+            argument names, in priority order
+
+    Returns:
+        ``value`` if it isn't ``None``, else the first non-``None``
+        alias, else ``None``
+    """
+    if value is not None:
+        return value
+    for alias in aliases:
+        if alias is not None:
+            return alias
+    return None
+
+
 def _get_view(dataset, view_stages=None):
     """Builds a view from a dataset with optional serialized stages.
 
@@ -87,6 +112,29 @@ def _get_view(dataset, view_stages=None):
             "Failed to apply view stages, using full dataset: %s", e
         )
         return dataset.view()
+
+
+_COUNTABLE_FIELD_TYPES = (
+    fo.BooleanField,
+    fo.IntField,
+    fo.StringField,
+    fo.DateField,
+    fo.DateTimeField,
+)
+
+
+def _is_countable_field(field):
+    """Whether ``count_values`` is meaningful for this field's type.
+
+    Per FiftyOne's own docs, ``count_values`` is for Boolean/Int/String/
+    Date/DateTime fields (or lists of such types) -- anything else
+    (floats, embeddings, embedded documents) either fails or returns a
+    result with no useful bound on cardinality, so it isn't worth the
+    aggregation.
+    """
+    if isinstance(field, fo.ListField):
+        field = field.field
+    return isinstance(field, _COUNTABLE_FIELD_TYPES)
 
 
 def format_response(data, success=True, error=None, **kwargs):

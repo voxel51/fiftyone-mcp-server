@@ -11,7 +11,14 @@ import logging
 import fiftyone as fo
 from mcp.types import Tool
 
-from .utils import SDK, _get_view, format_response, mcp_tool, safe_serialize
+from .utils import (
+    SDK,
+    _get_view,
+    _is_countable_field,
+    format_response,
+    mcp_tool,
+    safe_serialize,
+)
 
 
 logger = logging.getLogger(__name__)
@@ -34,6 +41,20 @@ def count_values(ctx, dataset_name, field, view_stages=None):
     """
     try:
         dataset = fo.load_dataset(dataset_name)
+        field_obj = dataset.get_field(field)
+        if field_obj is not None and not _is_countable_field(field_obj):
+            return format_response(
+                None,
+                success=False,
+                error=(
+                    f"count_values isn't meaningful for '{field}' "
+                    f"({type(field_obj).__name__}); it's only supported "
+                    "for Boolean/Int/String/Date/DateTime fields (or "
+                    "lists of such types). Use distinct, bounds, or "
+                    "another aggregation instead."
+                ),
+            )
+
         view = _get_view(dataset, view_stages)
         counts = view.count_values(field)
 
@@ -104,7 +125,13 @@ def compute_bounds(ctx, dataset_name, field, view_stages=None):
         view = _get_view(dataset, view_stages)
         mn, mx = view.bounds(field)
 
-        return format_response({"field": field, "min": mn, "max": mx})
+        return format_response(
+            {
+                "field": field,
+                "min": safe_serialize(mn),
+                "max": safe_serialize(mx),
+            }
+        )
 
     except Exception as e:
         logger.error("Failed to compute bounds for '%s': %s", field, e)
@@ -131,7 +158,9 @@ def compute_mean(ctx, dataset_name, field, view_stages=None):
         view = _get_view(dataset, view_stages)
         result = view.mean(field)
 
-        return format_response({"field": field, "mean": result})
+        return format_response(
+            {"field": field, "mean": safe_serialize(result)}
+        )
 
     except Exception as e:
         logger.error("Failed to compute mean for '%s': %s", field, e)
@@ -158,7 +187,7 @@ def compute_sum(ctx, dataset_name, field, view_stages=None):
         view = _get_view(dataset, view_stages)
         result = view.sum(field)
 
-        return format_response({"field": field, "sum": result})
+        return format_response({"field": field, "sum": safe_serialize(result)})
 
     except Exception as e:
         logger.error("Failed to compute sum for '%s': %s", field, e)
@@ -185,7 +214,7 @@ def compute_std(ctx, dataset_name, field, view_stages=None):
         view = _get_view(dataset, view_stages)
         result = view.std(field)
 
-        return format_response({"field": field, "std": result})
+        return format_response({"field": field, "std": safe_serialize(result)})
 
     except Exception as e:
         logger.error("Failed to compute std for '%s': %s", field, e)

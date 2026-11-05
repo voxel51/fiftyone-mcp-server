@@ -14,7 +14,13 @@ import fiftyone as fo
 from fiftyone.operators.store import ExecutionStore
 from mcp.types import Tool
 
-from .utils import SDK, format_response, mcp_tool, safe_serialize
+from .utils import (
+    SDK,
+    format_response,
+    mcp_tool,
+    resolve_alias,
+    safe_serialize,
+)
 
 
 logger = logging.getLogger(__name__)
@@ -23,7 +29,9 @@ _ME_STORE_NAME = "model_evaluation_panel_builtin"
 
 
 @mcp_tool(SDK)
-def list_brain_runs(ctx, dataset_name, run_type=None, method=None):
+def list_brain_runs(
+    ctx, dataset_name, run_type=None, method=None, type=None
+):  # pylint: disable=redefined-builtin
     """Lists brain method run keys for a dataset.
 
     Args:
@@ -37,10 +45,13 @@ def list_brain_runs(ctx, dataset_name, run_type=None, method=None):
             :attr:`fiftyone.core.brain.BrainMethodConfig.method`
             string to match (e.g. ``"umap"``, ``"tsne"``,
             ``"resnet50"``)
+        type (None): deprecated alias for ``run_type`` -- the name
+            the underlying :meth:`Dataset.list_brain_runs` itself uses
 
     Returns:
         a dict with the list of brain run keys
     """
+    run_type = resolve_alias(run_type, type)
     try:
         dataset = fo.load_dataset(dataset_name)
         runs = dataset.list_brain_runs(type=run_type, method=method)

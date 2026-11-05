@@ -13,8 +13,10 @@ from mcp.types import Tool
 
 from .utils import (
     SDK,
+    _is_countable_field,
     format_response,
     mcp_tool,
+    resolve_alias,
     safe_serialize,
     dataset_to_summary,
 )
@@ -77,19 +79,26 @@ def list_datasets(ctx, limit=50):
 
 
 @mcp_tool(SDK)
-def load_dataset(ctx, name):
+def load_dataset(ctx, dataset_name=None, name=None):
     """Loads a FiftyOne dataset by name and returns basic info.
 
     Args:
         ctx: an optional
             :class:`fiftyone.operators.executor.ExecutionContext`
-        name: the name of the dataset to load
+        dataset_name: the name of the dataset to load
+        name: deprecated alias for ``dataset_name``
 
     Returns:
         a dict containing dataset information
     """
+    dataset_name = resolve_alias(dataset_name, name)
+    if dataset_name is None:
+        return format_response(
+            None, success=False, error="dataset_name is required"
+        )
+
     try:
-        dataset = fo.load_dataset(name)
+        dataset = fo.load_dataset(dataset_name)
 
         info = {
             "name": dataset.name,
@@ -104,37 +113,15 @@ def load_dataset(ctx, name):
         return format_response(info)
 
     except Exception as e:
-        logger.error("Failed to load dataset '%s': %s", name, e)
+        logger.error("Failed to load dataset '%s': %s", dataset_name, e)
         return format_response(None, success=False, error=str(e))
 
-
-_COUNTABLE_FIELD_TYPES = (
-    fo.BooleanField,
-    fo.IntField,
-    fo.StringField,
-    fo.DateField,
-    fo.DateTimeField,
-)
 
 _SKIP_VALUE_COUNT_FIELDS = frozenset({"id", "filepath", "metadata", "tags"})
 
 
-def _is_countable_field(field):
-    """Whether ``count_values`` is meaningful for this field's type.
-
-    Per FiftyOne's own docs, ``count_values`` is for Boolean/Int/String/
-    Date/DateTime fields (or lists of such types) -- anything else
-    (floats, embeddings, embedded documents) either fails or returns a
-    result with no useful bound on cardinality, so it isn't worth the
-    aggregation.
-    """
-    if isinstance(field, fo.ListField):
-        field = field.field
-    return isinstance(field, _COUNTABLE_FIELD_TYPES)
-
-
 @mcp_tool(SDK)
-def dataset_summary(ctx, name):
+def dataset_summary(ctx, dataset_name=None, name=None):
     """Gets detailed summary statistics for a dataset.
 
     Value counts and tag counts are computed with a single batched
@@ -148,13 +135,20 @@ def dataset_summary(ctx, name):
     Args:
         ctx: an optional
             :class:`fiftyone.operators.executor.ExecutionContext`
-        name: the name of the dataset
+        dataset_name: the name of the dataset
+        name: deprecated alias for ``dataset_name``
 
     Returns:
         a dict containing detailed dataset statistics
     """
+    dataset_name = resolve_alias(dataset_name, name)
+    if dataset_name is None:
+        return format_response(
+            None, success=False, error="dataset_name is required"
+        )
+
     try:
-        dataset = fo.load_dataset(name)
+        dataset = fo.load_dataset(dataset_name)
         summary = dataset_to_summary(dataset)
 
         summary["stats"] = {
@@ -199,7 +193,9 @@ def dataset_summary(ctx, name):
         return format_response(summary)
 
     except Exception as e:
-        logger.error("Failed to get summary for dataset '%s': %s", name, e)
+        logger.error(
+            "Failed to get summary for dataset '%s': %s", dataset_name, e
+        )
         return format_response(None, success=False, error=str(e))
 
 
@@ -245,7 +241,7 @@ def register_tools(registry):
             inputSchema={
                 "type": "object",
                 "properties": {
-                    "name": {
+                    "dataset_name": {
                         "type": "string",
                         "description": (
                             "Name of the dataset to load. Required on "
@@ -255,7 +251,7 @@ def register_tools(registry):
                         ),
                     }
                 },
-                "required": ["name"],
+                "required": ["dataset_name"],
             },
         ),
         load_dataset,
@@ -270,7 +266,7 @@ def register_tools(registry):
             inputSchema={
                 "type": "object",
                 "properties": {
-                    "name": {
+                    "dataset_name": {
                         "type": "string",
                         "description": (
                             "Name of the dataset. Required on every call "
@@ -280,7 +276,7 @@ def register_tools(registry):
                         ),
                     }
                 },
-                "required": ["name"],
+                "required": ["dataset_name"],
             },
         ),
         dataset_summary,

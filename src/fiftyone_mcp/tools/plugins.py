@@ -11,7 +11,7 @@ import logging
 import fiftyone.plugins as fop
 from mcp.types import Tool
 
-from .utils import SDK, format_response, mcp_tool
+from .utils import SDK, format_response, mcp_tool, resolve_alias
 
 
 logger = logging.getLogger(__name__)
@@ -120,7 +120,16 @@ def get_plugin_info(ctx, plugin_name):
 
 
 @mcp_tool(SDK)
-def download_plugin(ctx, url_or_repo, plugin_names=None, overwrite=False):
+def download_plugin(
+    ctx,
+    url_or_repo=None,
+    plugin_names=None,
+    overwrite=False,
+    url=None,
+    repo=None,
+    repo_url=None,
+    github_repo=None,
+):
     """Downloads and installs a FiftyOne plugin.
 
     Args:
@@ -129,10 +138,20 @@ def download_plugin(ctx, url_or_repo, plugin_names=None, overwrite=False):
         url_or_repo: a GitHub repository URL or "user/repo" string
         plugin_names (None): optional list of specific plugin names
         overwrite (False): whether to overwrite existing plugins
+        url (None): deprecated alias for ``url_or_repo``
+        repo (None): deprecated alias for ``url_or_repo``
+        repo_url (None): deprecated alias for ``url_or_repo``
+        github_repo (None): deprecated alias for ``url_or_repo``
 
     Returns:
         a dict with success status and installation result
     """
+    url_or_repo = resolve_alias(url_or_repo, url, repo, repo_url, github_repo)
+    if url_or_repo is None:
+        return format_response(
+            None, success=False, error="url_or_repo is required"
+        )
+
     try:
         fop.download_plugin(
             url_or_repo,

@@ -46,6 +46,19 @@ class TestSetView:
         result = set_view(None)
         assert result["success"] is False
 
+    def test_set_view_ignores_stray_dataset_name(self):
+        """set_view has no dataset_name param -- a model that passes
+        one defensively (most other tools require it) must not get
+        a hard TypeError, just the ordinary no-dataset-in-context
+        error."""
+        ctx = MagicMock()
+        ctx.dataset = None
+
+        result = set_view(ctx, dataset_name="some_dataset")
+
+        assert result["success"] is False
+        assert "No dataset in execution context" in result["error"]
+
 
 class TestClearView:
     """Tests for clear_view tool."""
@@ -113,6 +126,103 @@ class TestMakeOpsHandler:
             name="map", is_active=True
         )
         assert result["_triggers"] == [trigger]
+
+    @pytest.mark.parametrize("alias", ["panel_name", "panel"])
+    def test_open_panel_accepts_name_aliases(self, alias):
+        """open_panel's real parameter is ``name`` -- a model commonly
+        guesses ``panel_name`` or ``panel`` instead. Both must still
+        reach ``ctx.ops.open_panel`` as ``name``."""
+        ctx = MagicMock()
+        ctx.ops.open_panel.return_value = MagicMock()
+
+        handler = _make_ops_handler("open_panel")
+        handler(ctx, **{alias: "map"})
+
+        ctx.ops.open_panel.assert_called_once_with(name="map")
+
+    def test_open_panel_ignores_stray_dataset_name(self):
+        """open_panel isn't dataset-scoped; a stray dataset_name must
+        be dropped, not forwarded to ctx.ops.open_panel."""
+        ctx = MagicMock()
+        ctx.ops.open_panel.return_value = MagicMock()
+
+        handler = _make_ops_handler("open_panel")
+        handler(ctx, name="map", dataset_name="quickstart")
+
+        ctx.ops.open_panel.assert_called_once_with(name="map")
+
+    def test_set_selected_samples_accepts_sample_ids_alias(self):
+        """set_selected_samples's real parameter is ``samples`` --
+        ``tag_samples``/``untag_samples`` use ``sample_ids`` for the
+        same concept, so a model often guesses that name instead."""
+        ctx = MagicMock()
+        ctx.ops.set_selected_samples.return_value = MagicMock()
+
+        handler = _make_ops_handler("set_selected_samples")
+        handler(ctx, sample_ids=["a", "b"])
+
+        ctx.ops.set_selected_samples.assert_called_once_with(
+            samples=["a", "b"]
+        )
+
+    def test_unrelated_method_has_no_aliases(self):
+        """A method with no configured aliases forwards kwargs as-is."""
+        ctx = MagicMock()
+        ctx.ops.notify.return_value = MagicMock()
+
+        handler = _make_ops_handler("notify")
+        handler(ctx, message="done")
+
+        ctx.ops.notify.assert_called_once_with(message="done")
+
+    @pytest.mark.parametrize("alias", ["panel_name", "panel"])
+    def test_close_panel_accepts_name_aliases(self, alias):
+        """close_panel has the same ``name`` property, for the same
+        concept, as open_panel -- it needs the same aliases."""
+        ctx = MagicMock()
+        ctx.ops.close_panel.return_value = MagicMock()
+
+        handler = _make_ops_handler("close_panel")
+        handler(ctx, **{alias: "map"})
+
+        ctx.ops.close_panel.assert_called_once_with(name="map")
+
+    def test_show_samples_accepts_sample_ids_alias(self):
+        """show_samples has the same ``samples`` property, for the
+        same concept, as set_selected_samples -- it needs the same
+        alias."""
+        ctx = MagicMock()
+        ctx.ops.show_samples.return_value = MagicMock()
+
+        handler = _make_ops_handler("show_samples")
+        handler(ctx, sample_ids=["a", "b"])
+
+        ctx.ops.show_samples.assert_called_once_with(samples=["a", "b"])
+
+    def test_open_panel_name_wins_over_aliases(self):
+        """When both the canonical and alias keywords are given, the
+        canonical one must reach ctx.ops.open_panel, not the alias."""
+        ctx = MagicMock()
+        ctx.ops.open_panel.return_value = MagicMock()
+
+        handler = _make_ops_handler("open_panel")
+        handler(ctx, name="canonical", panel_name="alias")
+
+        ctx.ops.open_panel.assert_called_once_with(name="canonical")
+
+    def test_set_selected_samples_samples_wins_over_alias(self):
+        """When both the canonical and alias keywords are given, the
+        canonical one must reach ctx.ops.set_selected_samples, not
+        the alias."""
+        ctx = MagicMock()
+        ctx.ops.set_selected_samples.return_value = MagicMock()
+
+        handler = _make_ops_handler("set_selected_samples")
+        handler(ctx, samples=["canonical"], sample_ids=["alias"])
+
+        ctx.ops.set_selected_samples.assert_called_once_with(
+            samples=["canonical"]
+        )
 
 
 class TestOpsConfig:

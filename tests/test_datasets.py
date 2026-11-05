@@ -18,7 +18,7 @@ from fiftyone_mcp.tools.datasets import (
     dataset_summary,
     register_tools,
 )
-from fiftyone_mcp.tools.utils import format_response
+from fiftyone_mcp.tools.utils import format_response, resolve_alias
 
 
 @pytest.fixture
@@ -104,6 +104,37 @@ class TestLoadDataset:
         assert "persistent" in result["data"]
         assert "tags" in result["data"]
 
+    def test_load_dataset_by_keyword(self, test_dataset):
+        """Test loading by the canonical ``dataset_name`` keyword."""
+        result = load_dataset(None, dataset_name=test_dataset.name)
+
+        assert result["success"] is True
+        assert result["data"]["name"] == test_dataset.name
+
+    def test_load_dataset_name_alias(self, test_dataset):
+        """Test that the deprecated ``name`` keyword still works."""
+        result = load_dataset(None, name=test_dataset.name)
+
+        assert result["success"] is True
+        assert result["data"]["name"] == test_dataset.name
+
+    def test_load_dataset_no_name_is_an_error(self):
+        """Test that omitting both name arguments errors cleanly."""
+        result = load_dataset(None)
+
+        assert result["success"] is False
+        assert "error" in result
+
+    def test_load_dataset_dataset_name_wins_over_name(self, test_dataset):
+        """When both the canonical and alias keywords are given, the
+        canonical one must win, not the alias."""
+        result = load_dataset(
+            None, dataset_name=test_dataset.name, name="nonexistent_12345"
+        )
+
+        assert result["success"] is True
+        assert result["data"]["name"] == test_dataset.name
+
 
 class TestDatasetSummary:
     """Tests for dataset_summary tool."""
@@ -138,6 +169,36 @@ class TestDatasetSummary:
         fields = result["data"]["sample_fields"]
         assert "id" in fields
         assert "filepath" in fields
+
+    def test_dataset_summary_by_keyword(self, test_dataset):
+        """Test getting a summary by the canonical ``dataset_name``."""
+        result = dataset_summary(None, dataset_name=test_dataset.name)
+
+        assert result["success"] is True
+
+    def test_dataset_summary_name_alias(self, test_dataset):
+        """Test that the deprecated ``name`` keyword still works."""
+        result = dataset_summary(None, name=test_dataset.name)
+
+        assert result["success"] is True
+
+    def test_dataset_summary_no_name_is_an_error(self):
+        """Test that omitting both name arguments errors cleanly."""
+        result = dataset_summary(None)
+
+        assert result["success"] is False
+        assert "error" in result
+
+    def test_dataset_summary_dataset_name_wins_over_name(
+        self, test_dataset
+    ):
+        """When both the canonical and alias keywords are given, the
+        canonical one must win, not the alias."""
+        result = dataset_summary(
+            None, dataset_name=test_dataset.name, name="nonexistent_12345"
+        )
+
+        assert result["success"] is True
 
 
 class TestDatasetSummarySerializability:
@@ -211,7 +272,26 @@ class TestRegistry:
     async def test_registry_load_dataset(
         self, registry, test_dataset
     ):
-        """Test registry call for load_dataset."""
+        """Test registry call for load_dataset via the canonical key."""
+        result = await registry.call_tool(
+            "load_dataset", {"dataset_name": test_dataset.name}
+        )
+
+        assert len(result.content) == 1
+        data = json.loads(result.content[0].text)
+        assert data["success"] is True
+        assert data["data"]["name"] == test_dataset.name
+
+    @pytest.mark.asyncio
+    async def test_registry_load_dataset_name_alias(
+        self, registry, test_dataset
+    ):
+        """A call using the old ``name`` key must still succeed.
+
+        This is the exact shape seen in production: a model that
+        generalizes from the other ~20 dataset tools (which all take
+        ``dataset_name``) and calls this one with ``name`` instead.
+        """
         result = await registry.call_tool(
             "load_dataset", {"name": test_dataset.name}
         )
@@ -231,6 +311,26 @@ class TestRegistry:
         assert len(result.content) == 1
         data = json.loads(result.content[0].text)
         assert data["success"] is False
+
+    @pytest.mark.asyncio
+    async def test_registry_load_dataset_schema_advertises_dataset_name(
+        self, registry
+    ):
+        """The schema must advertise ``dataset_name``, matching every
+        other dataset tool -- this is the inconsistency that caused
+        models to misname the argument in the first place.
+
+        Reads the schema via ``model_dump(by_alias=True)`` rather
+        than the ``.inputSchema`` attribute directly -- that attribute
+        is version-specific (``mcp`` 2.x renamed the underlying
+        pydantic field to ``input_schema``, aliased back to
+        ``inputSchema`` only on serialization).
+        """
+        tool = registry.get_tool("load_dataset")
+        schema = tool["schema"].model_dump(by_alias=True)["inputSchema"]
+
+        assert "dataset_name" in schema["properties"]
+        assert schema["required"] == ["dataset_name"]
 
     @pytest.mark.asyncio
     async def test_registry_unknown_tool(self, registry):
@@ -273,3 +373,18 @@ class TestUtilityFunctions:
 
         assert result["success"] is True
         assert result["data"] == data
+
+    def test_resolve_alias_value_wins_when_both_given(self):
+        """The canonical value must win over an alias, not the other
+        way around -- the exact precedence rule every call site
+        depends on."""
+        assert resolve_alias("canonical", "alias") == "canonical"
+
+    def test_resolve_alias_falls_back_to_first_alias(self):
+        """When the canonical value is unset, the first alias with a
+        value is used."""
+        assert resolve_alias(None, None, "second", "third") == "second"
+
+    def test_resolve_alias_all_unset(self):
+        """When nothing is set, the result is None."""
+        assert resolve_alias(None, None, None) is None
