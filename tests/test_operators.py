@@ -126,16 +126,24 @@ class TestOperatorDiscovery:
     def test_list_operators_with_query_narrows_the_result(self):
         """A query should return strictly fewer (or equal) operators
         than browsing the full list, for any real install with more
-        than a handful of operators."""
+        than a handful of operators.
+
+        Uses "clone", which matches core operators shipped by plain
+        OSS FiftyOne itself (clone_selected_samples, clone_sample_field,
+        clone_frame_field, clone_dataset) -- unlike a term such as
+        "duplicate", which only matches operators from optional
+        third-party plugins and would pass locally but fail in CI's
+        clean install with no such plugins present.
+        """
         full = list_operators(None)
-        narrowed = list_operators(None, query="duplicate")
+        narrowed = list_operators(None, query="clone")
 
         assert narrowed["success"] is True
         assert narrowed["data"]["count"] > 0
         assert narrowed["data"]["count"] <= full["data"]["count"]
         assert all(
-            "duplicate" in op["uri"].lower()
-            or "duplicate" in (op["description"] or "").lower()
+            "clone" in op["uri"].lower()
+            or "clone" in (op["description"] or "").lower()
             for op in narrowed["data"]["operators"]
         )
 
