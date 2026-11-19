@@ -123,6 +123,65 @@ class TestOperatorDiscovery:
         assert result["success"] is True
         assert result["data"]["count"] > 0
 
+    def test_list_operators_with_query_narrows_the_result(self):
+        """A query should return strictly fewer (or equal) operators
+        than browsing the full list, for any real install with more
+        than a handful of operators."""
+        full = list_operators(None)
+        narrowed = list_operators(None, query="duplicate")
+
+        assert narrowed["success"] is True
+        assert narrowed["data"]["count"] > 0
+        assert narrowed["data"]["count"] <= full["data"]["count"]
+        assert all(
+            "duplicate" in op["uri"].lower()
+            or "duplicate" in (op["description"] or "").lower()
+            for op in narrowed["data"]["operators"]
+        )
+
+    def test_list_operators_with_query_applies_after_other_filters(self):
+        """A query can never surface an operator that
+        builtin_only/operator_type filtering would otherwise have
+        excluded -- every result must satisfy both."""
+        result = list_operators(
+            None, builtin_only=True, query="dataset", verbose=True
+        )
+
+        assert result["success"] is True
+        for op in result["data"]["operators"]:
+            assert op["builtin"] is True
+
+    @pytest.mark.parametrize("query", ["???", "-", "重複", "дубликаты"])
+    def test_list_operators_with_untokenizable_query_returns_full_list(
+        self, query
+    ):
+        """A non-blank query that tokenizes to zero terms (punctuation-
+        only or a script the tokenizer can't match) must behave like no
+        query at all, not silently hand back an arbitrary slice of the
+        registry as if it were a ranked match."""
+        full = list_operators(None)
+        result = list_operators(None, query=query)
+
+        assert result["success"] is True
+        assert result["data"]["count"] == full["data"]["count"]
+
+    def test_list_operators_with_query_and_no_match_returns_empty(self):
+        result = list_operators(None, query="xyznonexistentquery123")
+
+        assert result["success"] is True
+        assert result["data"]["count"] == 0
+        assert result["data"]["operators"] == []
+
+    def test_list_operators_with_query_caps_results(self):
+        from fiftyone_mcp.tools._operator_search import MAX_RESULTS
+
+        # A single common letter should match far more than MAX_RESULTS
+        # operators in any real install with 80+ of them.
+        result = list_operators(None, query="a")
+
+        assert result["success"] is True
+        assert result["data"]["count"] <= MAX_RESULTS
+
 
 class TestOperatorSchema:
     """Tests for operator schema operations."""
