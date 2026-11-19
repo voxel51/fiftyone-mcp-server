@@ -173,6 +173,27 @@ class TestOperatorDiscovery:
         assert result["success"] is True
         assert result["data"]["count"] == full["data"]["count"]
 
+    def test_list_operators_with_pure_stopword_query_returns_full_list(self):
+        """A query made only of common filler words carries no real
+        search intent and must behave like no query at all."""
+        full = list_operators(None)
+        result = list_operators(None, query="the a in")
+
+        assert result["success"] is True
+        assert result["data"]["count"] == full["data"]["count"]
+
+    def test_list_operators_with_query_ignores_stopwords(self):
+        """A stopword mixed into a real query must not change the
+        ranked result from the stopword-free equivalent -- it carries
+        no search signal of its own."""
+        with_stopword = list_operators(None, query="the clone")
+        without_stopword = list_operators(None, query="clone")
+
+        assert with_stopword["success"] is True
+        assert [
+            op["uri"] for op in with_stopword["data"]["operators"]
+        ] == [op["uri"] for op in without_stopword["data"]["operators"]]
+
     def test_list_operators_with_query_and_no_match_returns_empty(self):
         result = list_operators(None, query="xyznonexistentquery123")
 
@@ -183,9 +204,10 @@ class TestOperatorDiscovery:
     def test_list_operators_with_query_caps_results(self):
         from fiftyone_mcp.tools._operator_search import MAX_RESULTS
 
-        # A single common letter should match far more than MAX_RESULTS
-        # operators in any real install with 80+ of them.
-        result = list_operators(None, query="a")
+        # "field" is a real term (not a stopword) that matches far more
+        # than MAX_RESULTS operators in any real install with 80+ of
+        # them.
+        result = list_operators(None, query="field")
 
         assert result["success"] is True
         assert result["data"]["count"] <= MAX_RESULTS

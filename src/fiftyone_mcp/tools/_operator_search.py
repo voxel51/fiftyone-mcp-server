@@ -16,6 +16,33 @@ MAX_RESULTS = 10
 _TOKEN_RE = re.compile(r"[a-z0-9]+")
 _MAX_QUERY_CHARS = 256
 _MAX_QUERY_TOKENS = 16
+_STOPWORDS = frozenset(
+    {
+        "a",
+        "an",
+        "the",
+        "in",
+        "on",
+        "of",
+        "to",
+        "for",
+        "and",
+        "or",
+        "is",
+        "are",
+        "was",
+        "were",
+        "be",
+        "by",
+        "with",
+        "at",
+        "from",
+        "as",
+        "it",
+        "this",
+        "that",
+    }
+)
 
 _FIELD_WEIGHTS = (
     ("name", 3.0),
@@ -30,8 +57,16 @@ def _tokenize(text) -> list[str]:
 
 
 def _query_tokens(query) -> list[str]:
+    """Tokenizes a caller-supplied *query*, bounded (see
+    ``_MAX_QUERY_*``) since this input is untrusted, unlike catalog
+    operator text. Common English filler words (``_STOPWORDS``) are
+    dropped since they appear in nearly every operator's description
+    and would otherwise count as matches unrelated to the caller's
+    actual intent."""
     truncated = str(query or "")[:_MAX_QUERY_CHARS]
-    tokens = _tokenize(truncated)
+    tokens = [
+        token for token in _tokenize(truncated) if token not in _STOPWORDS
+    ]
     return list(dict.fromkeys(tokens))[:_MAX_QUERY_TOKENS]
 
 
