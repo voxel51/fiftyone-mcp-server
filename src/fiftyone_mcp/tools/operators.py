@@ -37,6 +37,7 @@ from fiftyone.operators.executor import (
 )
 from mcp.types import Tool
 
+from ._operator_search import has_terms, search_operators
 from .utils import (
     APP,
     OPERATOR,
@@ -264,6 +265,7 @@ def list_operators(
     operator_type=None,
     verbose=False,
     dataset_name=None,
+    query=None,
 ):
     """Lists all available FiftyOne operators.
 
@@ -275,6 +277,11 @@ def list_operators(
     ``verbose=True`` for the full record (name, plugin_name, builtin,
     dynamic, execution flags).
 
+    Pass ``query`` to search by keyword (matched against name, label,
+    plugin, and description) instead of browsing the full list once
+    it's long; matches are ranked and capped at
+    :data:`~fiftyone_mcp.tools._operator_search.MAX_RESULTS`.
+
     Args:
         ctx: an optional
             :class:`fiftyone.operators.executor.ExecutionContext`
@@ -285,6 +292,10 @@ def list_operators(
             dataset-scoped. Accepted and ignored so a caller that
             passes it defensively (most other tools require it)
             doesn't get a hard error.
+        query (None): search by keyword instead of returning every
+            operator; applied after ``builtin_only``/``operator_type``
+            filtering, so a query can never surface an operator that
+            filtering would otherwise have excluded.
 
     Returns:
         a dict containing list of operators
@@ -299,6 +310,8 @@ def list_operators(
         operators = op_registry.list_operators(
             enabled=True, builtin=builtin, type=operator_type
         )
+        if has_terms(query):
+            operators = search_operators(operators, query)
 
         operator_list = []
         for op in operators:
@@ -651,6 +664,16 @@ def register_tools(registry):
                             "just uri, label, and description."
                         ),
                         "default": False,
+                    },
+                    "query": {
+                        "type": "string",
+                        "description": (
+                            "Search by keyword (matched against "
+                            "name, label, plugin, and "
+                            "description) instead of browsing "
+                            "the full list once it's long; "
+                            "matches are ranked and capped."
+                        ),
                     },
                 },
             },

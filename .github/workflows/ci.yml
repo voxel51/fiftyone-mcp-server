@@ -7,7 +7,10 @@ on:
 
 jobs:
   test:
-    runs-on: ubuntu-latest
+    # Pinned, not ubuntu-latest: fiftyone-db's bundled mongod binary breaks
+    # whenever GitHub moves the ubuntu-latest label to a new OS major
+    # version (e.g. 24.04 -> 26.04) out from under this workflow.
+    runs-on: ubuntu-24.04
     strategy:
       matrix:
         python-version: ["3.10", "3.11", "3.12"]
@@ -32,7 +35,7 @@ jobs:
     # mcp and would hide a resolver regression the "test" job above
     # can't see. 0.9.1 and 2.0.0 are the oldest and newest supported
     # mcp major lines (see the mcp bound in pyproject.toml).
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     strategy:
       matrix:
         include:
